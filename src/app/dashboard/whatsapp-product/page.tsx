@@ -2,73 +2,77 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  fetchBotItems,
-  fetchBotItem,
-  createBotItem,
-  updateBotItem,
-  deleteBotItem,
+  fetchWhatsAppProducts,
+  fetchWhatsAppProduct,
+  createWhatsAppProduct,
+  updateWhatsAppProduct,
+  deleteWhatsAppProduct,
   toImageSrc,
-  type WhatsAppBotItem,
-  type WhatsAppBotItemSummary,
-} from '@/lib/whatsapp-bot-items'
-import { getBotItemErrorMessage, validateBotItemRow } from '@/lib/error-messages'
+  validateWhatsAppProduct,
+  getWhatsAppProductErrorMessage,
+  type WhatsAppProduct,
+  type WhatsAppProductSummary,
+} from '@/lib/whatsapp-products'
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { ProductDetailModal, type ProductDetailRow } from '@/components/whatsapp-bot/product-detail-modal'
 import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  WhatsAppProductModal,
+  createEmptyColor,
+  colorsFromApi,
+  colorsToApi,
+  type WhatsAppProductModalRow,
+  type ProductColorRow,
+} from '@/components/whatsapp-product/product-modal'
 
-interface BotRow {
+interface ProductRow {
   id: string
-  productName: string
+  name: string
   price: string
-  adLink: string
   imageBase64: string | null
   imagePreview: string | null
-  description: string
+  colors: ProductColorRow[]
 }
 
-function createEmptyRow(): ProductDetailRow {
+const GRID_COLS = '36px minmax(140px,1.2fr) 100px 100px minmax(180px,1.5fr) 44px'
+const DESKTOP_MIN_WIDTH = '900px'
+
+function createEmptyRow(): WhatsAppProductModalRow {
   return {
     id: crypto.randomUUID(),
-    productName: '',
+    name: '',
     price: '',
-    adLink: '',
     imageBase64: null,
     imagePreview: null,
-    description: '',
+    colors: [],
     isNew: true,
   }
 }
 
-function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
-  const imageBase64 = 'image_base64' in item ? item.image_base64 : null
+function summaryToRow(item: WhatsAppProductSummary): ProductRow {
   return {
     id: item.id,
-    productName: item.product_name ?? '',
-    price: item.price != null ? String(item.price) : '',
-    adLink: item.ad_link,
-    imageBase64,
-    imagePreview: toImageSrc(imageBase64),
-    description: item.description,
+    name: item.name,
+    price: String(item.price),
+    imageBase64: null,
+    imagePreview: null,
+    colors: colorsFromApi(item.colors ?? []),
   }
 }
 
-function rowToModal(row: BotRow): ProductDetailRow {
-  return { ...row, isNew: false }
+function productToRow(item: WhatsAppProduct): ProductRow {
+  return {
+    id: item.id,
+    name: item.name,
+    price: String(item.price),
+    imageBase64: item.image_base64,
+    imagePreview: toImageSrc(item.image_base64),
+    colors: colorsFromApi(item.colors ?? []),
+  }
 }
 
-const GRID_COLS =
-  '36px minmax(130px,1fr) 100px minmax(160px,1.15fr) 120px minmax(200px,1.5fr) 44px'
-
-const DESKTOP_MIN_WIDTH = '1120px'
-
-function matchesProductSearch(row: BotRow, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return (
-    row.productName.toLowerCase().includes(q) ||
-    row.adLink.toLowerCase().includes(q)
-  )
+function rowToModal(row: ProductRow): WhatsAppProductModalRow {
+  return { ...row, isNew: false }
 }
 
 function formatPrice(price: string): string {
@@ -78,22 +82,32 @@ function formatPrice(price: string): string {
   return `Rs ${n.toLocaleString('en-MU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
-export default function WhatsAppBotPage() {
+function matchesSearch(row: ProductRow, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return (
+    row.name.toLowerCase().includes(q) ||
+    row.colors.some(c => c.colorName.toLowerCase().includes(q))
+  )
+}
+
+export default function WhatsAppProductPage() {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
-  const [rows, setRows] = useState<BotRow[]>([])
+
+  const [rows, setRows] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [modalSaving, setModalSaving] = useState(false)
-  const [modalRow, setModalRow] = useState<ProductDetailRow | null>(null)
+  const [modalRow, setModalRow] = useState<WhatsAppProductModalRow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<BotRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
   const filteredRows = useMemo(
-    () => rows.filter(row => matchesProductSearch(row, searchQuery)),
+    () => rows.filter(row => matchesSearch(row, searchQuery)),
     [rows, searchQuery]
   )
 
@@ -115,13 +129,13 @@ export default function WhatsAppBotPage() {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
 
-  const loadItems = useCallback(async () => {
+  const loadProducts = useCallback(async () => {
     setLoading(true)
     try {
-      const items = await fetchBotItems()
-      setRows(items.map(itemToRow))
+      const items = await fetchWhatsAppProducts()
+      setRows(items.map(summaryToRow))
     } catch (err) {
-      toastRef.current.error(getBotItemErrorMessage(err))
+      toastRef.current.error(getWhatsAppProductErrorMessage(err))
       setRows([])
     } finally {
       setLoading(false)
@@ -129,78 +143,73 @@ export default function WhatsAppBotPage() {
   }, [])
 
   useEffect(() => {
-    loadItems()
-  }, [loadItems])
+    loadProducts()
+  }, [loadProducts])
 
-  const openAddModal = () => {
-    setModalRow(createEmptyRow())
-  }
+  const openAddModal = () => setModalRow(createEmptyRow())
 
-  const openEditModal = async (row: BotRow) => {
+  const openEditModal = async (row: ProductRow) => {
     setModalRow(rowToModal(row))
 
     if (row.imageBase64) return
 
     try {
-      const item = await fetchBotItem(row.id)
-      setModalRow(rowToModal(itemToRow(item)))
-      setRows(prev =>
-        prev.map(r => (r.id === item.id ? itemToRow(item) : r))
-      )
+      const item = await fetchWhatsAppProduct(row.id)
+      const fullRow = productToRow(item)
+      setModalRow(rowToModal(fullRow))
+      setRows(prev => prev.map(r => (r.id === fullRow.id ? fullRow : r)))
     } catch (err) {
-      toast.error(getBotItemErrorMessage(err))
+      toast.error(getWhatsAppProductErrorMessage(err))
     }
   }
 
-  const updateModalRow = (id: string, updates: Partial<ProductDetailRow>) => {
+  const updateModalRow = (id: string, updates: Partial<WhatsAppProductModalRow>) => {
     setModalRow(prev => (prev && prev.id === id ? { ...prev, ...updates } : prev))
   }
 
   const handleSaveModal = async () => {
     if (!modalRow) return
 
-    const validationError = validateBotItemRow(modalRow)
+    const validationError = validateWhatsAppProduct({
+      name: modalRow.name,
+      price: modalRow.price,
+      colors: modalRow.colors.map(c => ({ color_name: c.colorName })),
+    })
+
     if (validationError) {
       toast.error(validationError)
       return
     }
 
     const payload = {
-      ad_link: modalRow.adLink.trim(),
-      product_name: modalRow.productName.trim(),
+      name: modalRow.name.trim(),
       price: parseFloat(modalRow.price),
       image_base64: modalRow.imageBase64,
-      description: modalRow.description.trim(),
+      colors: colorsToApi(modalRow.colors),
     }
 
     setModalSaving(true)
     try {
       if (modalRow.isNew) {
-        const created = await createBotItem(payload)
-        setRows(prev => [...prev, itemToRow(created)])
+        const created = await createWhatsAppProduct(payload)
+        setRows(prev => [...prev, productToRow(created)])
         toast.success('Product added')
       } else {
-        const updated = await updateBotItem(modalRow.id, payload)
-        setRows(prev => prev.map(r => (r.id === updated.id ? itemToRow(updated) : r)))
+        const updated = await updateWhatsAppProduct(modalRow.id, payload)
+        setRows(prev => prev.map(r => (r.id === updated.id ? productToRow(updated) : r)))
         toast.success('Product saved')
       }
       setModalRow(null)
     } catch (err) {
-      toast.error(getBotItemErrorMessage(err))
+      toast.error(getWhatsAppProductErrorMessage(err))
     } finally {
       setModalSaving(false)
     }
   }
 
-  const requestDelete = (row: BotRow) => {
+  const requestDelete = (row: ProductRow) => {
     setModalRow(null)
     setDeleteTarget(row)
-  }
-
-  const requestDeleteFromModal = () => {
-    if (!modalRow || modalRow.isNew) return
-    const row = rows.find(r => r.id === modalRow.id)
-    if (row) requestDelete(row)
   }
 
   const confirmDelete = async () => {
@@ -208,12 +217,11 @@ export default function WhatsAppBotPage() {
     setDeletingId(deleteTarget.id)
 
     try {
-      await deleteBotItem(deleteTarget.id)
+      await deleteWhatsAppProduct(deleteTarget.id)
       setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
-      if (modalRow?.id === deleteTarget.id) setModalRow(null)
       toast.success('Product deleted')
     } catch (err) {
-      toast.error(getBotItemErrorMessage(err))
+      toast.error(getWhatsAppProductErrorMessage(err))
     } finally {
       setDeletingId(null)
       setDeleteTarget(null)
@@ -226,9 +234,9 @@ export default function WhatsAppBotPage() {
         open={deleteTarget !== null}
         title="Delete product?"
         description={
-          deleteTarget?.productName
-            ? `"${deleteTarget.productName}" will be permanently removed from the bot catalog.`
-            : 'This product will be permanently removed from the bot catalog.'
+          deleteTarget?.name
+            ? `"${deleteTarget.name}" and all its color variants will be permanently removed.`
+            : 'This product will be permanently removed.'
         }
         confirmLabel="Delete"
         variant="danger"
@@ -237,20 +245,27 @@ export default function WhatsAppBotPage() {
         onConfirm={confirmDelete}
       />
 
-      <ProductDetailModal
+      <WhatsAppProductModal
         row={modalRow}
         saving={modalSaving}
         onClose={() => !modalSaving && setModalRow(null)}
         onSave={handleSaveModal}
         onUpdate={updateModalRow}
-        onDelete={requestDeleteFromModal}
+        onDelete={
+          modalRow && !modalRow.isNew
+            ? () => {
+                const row = rows.find(r => r.id === modalRow.id)
+                if (row) requestDelete(row)
+              }
+            : undefined
+        }
       />
 
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 shrink-0">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Bot Configuration</h2>
+          <h2 className="text-xl font-semibold text-gray-900">WhatsApp Products</h2>
           <p className="text-sm text-gray-500 mt-1 max-w-xl">
-            Configure products customers can order via WhatsApp. Each ad link triggers the bot flow for that product.
+            Manage your ecommerce catalog — name, image, price, and optional color variants.
           </p>
         </div>
         <button
@@ -274,7 +289,7 @@ export default function WhatsAppBotPage() {
               type="search"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search by product name or ad link…"
+              placeholder="Search by name or color…"
               className="w-full h-10 pl-9 pr-9 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400 transition"
             />
             {searchQuery && (
@@ -290,20 +305,16 @@ export default function WhatsAppBotPage() {
               </button>
             )}
           </div>
-          {searchQuery && (
-            <p className="text-sm text-gray-500 shrink-0">
-              {filteredRows.length} {filteredRows.length === 1 ? 'match' : 'matches'}
-            </p>
-          )}
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-4 shrink-0">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 shrink-0">
         <StatCard label="Total products" value={loading ? '—' : String(rows.length)} />
         <StatCard
-          label="Catalog status"
-          value={loading ? '—' : rows.length > 0 ? 'Active' : 'Empty'}
-          variant={rows.length > 0 ? 'success' : 'default'}
+          label="Color variants"
+          value={
+            loading ? '—' : String(rows.reduce((sum, r) => sum + r.colors.length, 0))
+          }
         />
       </div>
 
@@ -315,11 +326,10 @@ export default function WhatsAppBotPage() {
               style={{ gridTemplateColumns: GRID_COLS }}
             >
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider text-center">#</span>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Product name</span>
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Name</span>
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider text-center">Image</span>
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider text-right pr-1">Price</span>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Ads link</span>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider text-center">Photo</span>
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Description</span>
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Colors</span>
               <span className="sr-only">Actions</span>
             </div>
           </div>
@@ -336,7 +346,7 @@ export default function WhatsAppBotPage() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {paginatedRows.map((row, index) => (
-                  <BotRowDesktop
+                  <ProductRowDesktop
                     key={row.id}
                     row={row}
                     index={rangeStart + index - 1}
@@ -365,7 +375,7 @@ export default function WhatsAppBotPage() {
       </div>
 
       <div className="lg:hidden flex flex-1 min-h-0 flex-col gap-3">
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-0.5">
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-4">
           {loading ? (
             <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm">
               <LoadingState />
@@ -380,7 +390,7 @@ export default function WhatsAppBotPage() {
             </div>
           ) : (
             paginatedRows.map((row, index) => (
-              <BotRowMobile
+              <ProductRowMobile
                 key={row.id}
                 row={row}
                 index={rangeStart + index - 1}
@@ -409,14 +419,39 @@ export default function WhatsAppBotPage() {
   )
 }
 
-function BotRowDesktop({
+function ColorSwatches({ colors }: { colors: ProductColorRow[] }) {
+  if (colors.length === 0) return <span className="text-sm text-gray-400">—</span>
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+      {colors.slice(0, 5).map(color => (
+        <span
+          key={color.id}
+          title={color.colorName}
+          className="inline-flex items-center gap-1.5 max-w-[120px] px-2 py-1 rounded-full bg-gray-50 border border-gray-100 text-xs text-gray-600"
+        >
+          <span
+            className="w-3 h-3 rounded-full shrink-0 ring-1 ring-gray-200"
+            style={{ backgroundColor: color.colorHex || '#e5e7eb' }}
+          />
+          <span className="truncate">{color.colorName}</span>
+        </span>
+      ))}
+      {colors.length > 5 && (
+        <span className="text-xs text-gray-400">+{colors.length - 5}</span>
+      )}
+    </div>
+  )
+}
+
+function ProductRowDesktop({
   row,
   index,
   isDeleting,
   onEdit,
   onDelete,
 }: {
-  row: BotRow
+  row: ProductRow
   index: number
   isDeleting: boolean
   onEdit: () => void
@@ -430,21 +465,15 @@ function BotRowDesktop({
     >
       <span className="text-xs font-semibold text-gray-400 text-center tabular-nums">{index + 1}</span>
 
-      <span className="text-sm font-medium text-gray-900 truncate min-w-0" title={row.productName}>
-        {row.productName || '—'}
-      </span>
-
-      <span className="text-sm text-gray-800 text-right tabular-nums pr-1">{formatPrice(row.price)}</span>
-
-      <span className="text-xs text-gray-600 truncate min-w-0" title={row.adLink}>
-        {row.adLink || '—'}
+      <span className="text-sm font-medium text-gray-900 truncate min-w-0" title={row.name}>
+        {row.name || '—'}
       </span>
 
       <div className="flex items-center justify-center">
         {row.imagePreview ? (
           <img
             src={row.imagePreview}
-            alt={row.productName || 'Product'}
+            alt={row.name || 'Product'}
             className="w-10 h-10 rounded-lg object-cover border border-gray-200"
           />
         ) : (
@@ -452,9 +481,9 @@ function BotRowDesktop({
         )}
       </div>
 
-      <span className="text-sm text-gray-600 truncate min-w-0" title={row.description || undefined}>
-        {row.description || '—'}
-      </span>
+      <span className="text-sm text-gray-800 text-right tabular-nums pr-1">{formatPrice(row.price)}</span>
+
+      <ColorSwatches colors={row.colors} />
 
       <div className="flex justify-center" onClick={e => e.stopPropagation()}>
         <button
@@ -471,14 +500,14 @@ function BotRowDesktop({
   )
 }
 
-function BotRowMobile({
+function ProductRowMobile({
   row,
   index,
   isDeleting,
   onEdit,
   onDelete,
 }: {
-  row: BotRow
+  row: ProductRow
   index: number
   isDeleting: boolean
   onEdit: () => void
@@ -495,7 +524,7 @@ function BotRowMobile({
           {row.imagePreview ? (
             <img
               src={row.imagePreview}
-              alt={row.productName || 'Product'}
+              alt={row.name || 'Product'}
               className="w-14 h-14 rounded-xl object-cover border border-gray-200 shrink-0"
             />
           ) : (
@@ -504,15 +533,12 @@ function BotRowMobile({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold text-gray-400 tabular-nums">#{index + 1}</span>
-              <span className="text-sm font-medium text-gray-900 truncate">{row.productName || '—'}</span>
+              <span className="text-sm font-medium text-gray-900 truncate">{row.name || '—'}</span>
             </div>
             <p className="text-sm text-emerald-600 font-medium tabular-nums mt-0.5">{formatPrice(row.price)}</p>
-            <p className="text-xs text-gray-500 truncate mt-1" title={row.adLink}>{row.adLink || 'No ad link'}</p>
           </div>
         </div>
-        <p className="text-sm text-gray-600 line-clamp-2" title={row.description || undefined}>
-          {row.description || 'No description'}
-        </p>
+        <ColorSwatches colors={row.colors} />
       </button>
       <div className="px-4 pb-4 flex justify-end border-t border-gray-100 pt-3">
         <button
@@ -529,49 +555,11 @@ function BotRowMobile({
   )
 }
 
-function SearchIcon({ className }: { className?: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-  )
-}
-
-function NoSearchResults({ onClear }: { onClear: () => void }) {
-  return (
-    <div className="px-6 py-14 flex flex-col items-center justify-center text-center gap-3">
-      <SearchIcon className="w-8 h-8 text-gray-300" />
-      <p className="text-sm font-medium text-gray-900">No products found</p>
-      <p className="text-sm text-gray-500">Try a different search term.</p>
-      <button type="button" onClick={onClear} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium mt-1">
-        Clear search
-      </button>
-    </div>
-  )
-}
-
-function StatCard({
-  label,
-  value,
-  variant = 'default',
-  className = '',
-}: {
-  label: string
-  value: string
-  variant?: 'default' | 'success' | 'warning'
-  className?: string
-}) {
-  const valueClass =
-    variant === 'success'
-      ? 'text-emerald-600'
-      : variant === 'warning'
-        ? 'text-amber-600'
-        : 'text-gray-900'
-
-  return (
-    <div className={`bg-white rounded-xl border border-gray-200/80 shadow-sm px-4 py-3.5 ${className}`}>
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm px-4 py-3.5">
       <p className="text-xs text-gray-500 font-medium">{label}</p>
-      <p className={`text-lg font-semibold mt-0.5 ${valueClass}`}>{value}</p>
+      <p className="text-lg font-semibold mt-0.5 text-gray-900">{value}</p>
     </div>
   )
 }
@@ -590,12 +578,12 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
     <div className="px-6 py-16 flex flex-col items-center justify-center text-center gap-4">
       <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
         <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
         </svg>
       </div>
       <div>
         <p className="text-sm font-medium text-gray-900">No products yet</p>
-        <p className="text-sm text-gray-500 mt-1 max-w-xs">Add your first product to start receiving WhatsApp orders.</p>
+        <p className="text-sm text-gray-500 mt-1 max-w-xs">Add your first ecommerce product. Colors are optional.</p>
       </div>
       <button
         type="button"
@@ -606,6 +594,26 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         Add first product
       </button>
     </div>
+  )
+}
+
+function NoSearchResults({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="px-6 py-14 flex flex-col items-center justify-center text-center gap-3">
+      <SearchIcon className="w-8 h-8 text-gray-300" />
+      <p className="text-sm font-medium text-gray-900">No products found</p>
+      <button type="button" onClick={onClear} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+        Clear search
+      </button>
+    </div>
+  )
+}
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
   )
 }
 

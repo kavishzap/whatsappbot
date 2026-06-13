@@ -1,12 +1,15 @@
-export interface WhatsAppBotItem {
+export interface WhatsAppBotItemSummary {
   id: string
   ad_link: string
   product_name: string
   price: number | null
-  image_base64: string | null
   description: string
   created_at: string
   updated_at: string
+}
+
+export interface WhatsAppBotItem extends WhatsAppBotItemSummary {
+  image_base64: string | null
 }
 
 export interface BotItemPayload {
@@ -53,8 +56,12 @@ async function requestVoid(method: string, id: string): Promise<void> {
   }
 }
 
-export function fetchBotItems(): Promise<WhatsAppBotItem[]> {
-  return request<WhatsAppBotItem[]>('GET')
+export function fetchBotItems(): Promise<WhatsAppBotItemSummary[]> {
+  return request<WhatsAppBotItemSummary[]>('GET')
+}
+
+export function fetchBotItem(id: string): Promise<WhatsAppBotItem> {
+  return request<WhatsAppBotItem>('GET', { id })
 }
 
 export function createBotItem(body: BotItemPayload): Promise<WhatsAppBotItem> {

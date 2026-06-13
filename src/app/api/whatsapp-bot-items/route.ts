@@ -3,6 +3,9 @@ import { createClient as createAuthClient } from '@/lib/supabase/server'
 import { getServiceClient } from '@/lib/supabase/admin'
 import { isAllowedRole } from '@/lib/auth'
 
+const LIST_COLUMNS =
+  'id, ad_link, product_name, price, description, created_at, updated_at'
+
 async function requireAuth() {
   const supabase = createAuthClient()
   const {
@@ -29,24 +32,38 @@ export async function GET(request: NextRequest) {
   }
 
   const id = request.nextUrl.searchParams.get('id')
-  const supabase = getServiceClient()
 
-  let query = supabase
-    .from('whatsapp_bot_items')
-    .select('*')
-    .order('created_at', { ascending: false })
+  try {
+    const supabase = getServiceClient()
 
-  if (id) {
-    query = query.eq('id', id)
+    if (id) {
+      const { data, error } = await supabase
+        .from('whatsapp_bot_items')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, data })
+    }
+
+    const { data, error } = await supabase
+      .from('whatsapp_bot_items')
+      .select(LIST_COLUMNS)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-
-  const { data, error } = await query
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true, data })
 }
 
 export async function POST(request: NextRequest) {

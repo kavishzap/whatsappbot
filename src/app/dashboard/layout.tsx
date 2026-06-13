@@ -38,6 +38,22 @@ function OrdersIcon({ className }: { className?: string }) {
   )
 }
 
+function ProductIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+    </svg>
+  )
+}
+
+function PlatformIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+    </svg>
+  )
+}
+
 function SidebarTooltip({
   label,
   show,
@@ -82,55 +98,73 @@ function SidebarContent({
   const displayEmail = profile?.email ?? ''
   const initials = getInitials(profile?.full_name ?? null, profile?.email ?? null)
 
-  const navItems = [
+  const automationItems = [
     { href: '/dashboard/whatsapp-bot', label: 'WhatsApp Bot', icon: WhatsAppIcon },
     { href: '/dashboard/orders', label: 'WhatsApp Orders', icon: OrdersIcon },
   ]
 
+  const ecommerceItems = [
+    { href: '/dashboard/whatsapp-product', label: 'WhatsApp Product', icon: ProductIcon },
+    { href: '/dashboard/ordering-platform-test', label: 'Ordering Platform Test', icon: PlatformIcon },
+  ]
+
+  const renderNavItem = (href: string, label: string, Icon: typeof WhatsAppIcon) => {
+    const active = pathname === href
+    return (
+      <SidebarTooltip key={href} label={label} show={collapsed}>
+        <Link
+          href={href}
+          onClick={onNavClick}
+          aria-label={collapsed ? label : undefined}
+          className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
+            collapsed
+              ? 'w-10 h-10 mx-auto justify-center'
+              : 'px-3 py-2.5'
+          } ${
+            active
+              ? collapsed
+                ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
+                : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+              : collapsed
+                ? 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          }`}
+        >
+          <Icon
+            className={`w-[18px] h-[18px] shrink-0 ${
+              active
+                ? collapsed
+                  ? 'text-white'
+                  : 'text-emerald-500'
+                : 'text-gray-400 group-hover/tooltip:text-gray-600'
+            }`}
+          />
+          {!collapsed && label}
+        </Link>
+      </SidebarTooltip>
+    )
+  }
+
   return (
     <>
-      <nav className={`flex-1 px-2 py-4 space-y-1 ${collapsed ? 'overflow-visible' : ''}`}>
-        {!collapsed && (
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-2">
-            Automation
-          </p>
-        )}
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
-          return (
-            <SidebarTooltip key={href} label={label} show={collapsed}>
-              <Link
-                href={href}
-                onClick={onNavClick}
-                aria-label={collapsed ? label : undefined}
-                className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
-                  collapsed
-                    ? 'w-10 h-10 mx-auto justify-center'
-                    : 'px-3 py-2.5'
-                } ${
-                  active
-                    ? collapsed
-                      ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
-                      : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
-                    : collapsed
-                      ? 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }`}
-              >
-                <Icon
-                  className={`w-[18px] h-[18px] shrink-0 ${
-                    active
-                      ? collapsed
-                        ? 'text-white'
-                        : 'text-emerald-500'
-                      : 'text-gray-400 group-hover/tooltip:text-gray-600'
-                  }`}
-                />
-                {!collapsed && label}
-              </Link>
-            </SidebarTooltip>
-          )
-        })}
+      <nav className={`flex-1 px-2 py-4 space-y-4 ${collapsed ? 'overflow-visible' : ''}`}>
+        <div className="space-y-1">
+          {!collapsed && (
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-2">
+              Automation
+            </p>
+          )}
+          {automationItems.map(({ href, label, icon }) => renderNavItem(href, label, icon))}
+        </div>
+
+        <div className="space-y-1">
+          {!collapsed && (
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 mb-2">
+              Ecommerce
+            </p>
+          )}
+          {ecommerceItems.map(({ href, label, icon }) => renderNavItem(href, label, icon))}
+        </div>
       </nav>
 
       <div className={`px-3 py-4 border-t border-gray-100 space-y-3 ${collapsed ? 'flex flex-col items-center overflow-visible' : ''}`}>
@@ -197,6 +231,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     '/dashboard/orders': {
       title: 'Orders',
       subtitle: 'View and search WhatsApp bot orders',
+    },
+    '/dashboard/whatsapp-product': {
+      title: 'WhatsApp Products',
+      subtitle: 'Manage ecommerce catalog with optional color variants',
+    },
+    '/dashboard/ordering-platform-test': {
+      title: 'Ordering Platform Test',
+      subtitle: 'Embedded ordering platform preview',
     },
   }
   const { title: headerTitle, subtitle: headerSubtitle } =
