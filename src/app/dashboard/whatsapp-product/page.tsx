@@ -18,7 +18,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   WhatsAppProductModal,
-  createEmptyColor,
   colorsFromApi,
   colorsToApi,
   type WhatsAppProductModalRow,
