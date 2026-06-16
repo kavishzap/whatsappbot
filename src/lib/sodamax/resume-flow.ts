@@ -4,7 +4,7 @@ import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/chatbot/c
 import { findSodamaxProductById, getSodamaxProductLabel } from './products'
 import { sendSodamaxProductList } from './product-list'
 import { MAIN_MENU_BUTTONS } from './constants'
-import type { SodamaxSession } from './types'
+import type { SodamaxProduct, SodamaxSession } from './types'
 
 async function sendOrderDecisionButtons(phone: string): Promise<void> {
   await sendWhatsAppButtons(phone, 'Do you want to order this product?', [
@@ -23,6 +23,23 @@ async function sendQuantityList(phone: string): Promise<void> {
       title: opt.label,
     }))
   )
+}
+
+function formatColorPrompt(color: { color_name: string; color_hex: string | null }): string {
+  const name = color.color_name.trim()
+  const hex = color.color_hex?.trim()
+  if (hex) return `${name}\n${hex}\n\nIs this your color?`
+  return `${name}\n\nIs this your color?`
+}
+
+async function sendColorPrompt(phone: string, product: SodamaxProduct, index: number): Promise<void> {
+  const color = product.colors[index]
+  if (!color) return
+
+  await sendWhatsAppButtons(phone, formatColorPrompt(color), [
+    { id: 'sm_color_yes', title: 'Yes' },
+    { id: 'sm_color_no', title: 'No' },
+  ])
 }
 
 export async function resumeSodamaxSessionFlow(
@@ -48,18 +65,11 @@ export async function resumeSodamaxSessionFlow(
       const product = session.selected_item_id
         ? await findSodamaxProductById(session.selected_item_id)
         : null
-      if (product && product.colors.length > 0) {
-        await sendWhatsAppList(
-          phone,
-          `Which color would you like for *${getSodamaxProductLabel(product)}*?`,
-          'Select color',
-          product.colors.map((c, i) => ({
-            id: `sm_color_${c.id ?? i}`,
-            title: c.color_name.slice(0, 24),
-            description: c.color_hex ? c.color_hex : undefined,
-          })),
-          'Colors'
-        )
+      const index = session.quantity ?? 0
+      if (product && product.colors[index]) {
+        await sendColorPrompt(phone, product, index)
+      } else if (product && product.colors.length > 0) {
+        await sendColorPrompt(phone, product, 0)
       } else {
         await sendSodamaxProductList(phone)
       }
@@ -101,8 +111,6 @@ export async function resumeSodamaxSessionFlow(
         `Quantity: ${session.quantity ?? '—'}`,
         `Region: ${session.city ?? '—'}`,
         `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
-        '',
-        'Confirm this order?',
       ].join('\n')
 
       await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])

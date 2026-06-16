@@ -32,6 +32,7 @@ function parseApiError(result: { error?: { message?: string; code?: number; erro
 }
 
 import { getCurrentWhatsAppLine, getPhoneNumberIdForLine } from './whatsapp-line'
+import { logWhatsAppMediaUpload, logWhatsAppOutbound } from './whatsapp-log'
 
 function getConfig() {
   const accessToken = (
@@ -56,6 +57,11 @@ function getConfig() {
 export async function sendWhatsAppText(to: string, text: string) {
   const { phoneNumberId, accessToken } = getConfig()
 
+  const payload = {
+    type: 'text',
+    text: { body: text },
+  }
+
   const response = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
@@ -65,8 +71,7 @@ export async function sendWhatsAppText(to: string, text: string) {
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to,
-      type: 'text',
-      text: { body: text },
+      ...payload,
     }),
   })
 
@@ -76,6 +81,8 @@ export async function sendWhatsAppText(to: string, text: string) {
     console.error('WhatsApp text error:', response.status, JSON.stringify(result))
     parseApiError(result)
   }
+
+  logWhatsAppOutbound(to, payload, { response: result })
 
   return result
 }
@@ -105,6 +112,8 @@ export async function uploadWhatsAppMedia(
     parseApiError(result)
   }
 
+  logWhatsAppMediaUpload({ mimeType, bytes: buffer.length, mediaId: result.id, response: result })
+
   return result.id as string
 }
 
@@ -116,6 +125,7 @@ export async function sendWhatsAppImage(to: string, mediaId: string, caption?: s
     image.caption = caption.slice(0, 1024)
   }
 
+  const payload = { type: 'image', image }
   const response = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
@@ -125,8 +135,7 @@ export async function sendWhatsAppImage(to: string, mediaId: string, caption?: s
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to,
-      type: 'image',
-      image,
+      ...payload,
     }),
   })
 
@@ -136,6 +145,8 @@ export async function sendWhatsAppImage(to: string, mediaId: string, caption?: s
     console.error('WhatsApp image error:', response.status, JSON.stringify(result))
     parseApiError(result)
   }
+
+  logWhatsAppOutbound(to, payload, { response: result })
 
   return result
 }
@@ -158,6 +169,8 @@ async function sendMessagePayload(to: string, payload: Record<string, unknown>) 
     console.error('WhatsApp API error:', response.status, JSON.stringify(result))
     parseApiError(result)
   }
+
+  logWhatsAppOutbound(to, payload, { response: result })
 
   return result
 }

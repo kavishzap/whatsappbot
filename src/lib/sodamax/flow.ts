@@ -21,7 +21,8 @@ import {
   isSeeMoreAnswer,
   parseProductSelection,
   parseProductListPage,
-  parseColorSelection,
+  isColorYesAnswer,
+  isColorNoAnswer,
   parseQuantitySelection,
   parseQuantity,
   parseCitySelection,
@@ -202,17 +203,7 @@ async function startNewMachineFlow(phone: string): Promise<void> {
   await sendProductContent(phone, product, null)
 
   if (product.colors.length > 0) {
-    await updateSession(phone, {
-      state: 'awaiting_color_selection',
-      selected_item_id: product.id,
-      quantity: null,
-      city: null,
-      address: null,
-      customer_name: null,
-      total: null,
-      draft_order_id: null,
-    })
-    await sendColorList(phone, product)
+    await beginColorSelection(phone, product)
     return
   }
 
@@ -229,18 +220,35 @@ async function startNewMachineFlow(phone: string): Promise<void> {
   await askQuantity(phone, product.id)
 }
 
-async function sendColorList(phone: string, product: SodamaxProduct): Promise<void> {
-  await sendWhatsAppList(
-    phone,
-    `Which color would you like for *${getSodamaxProductLabel(product)}*?`,
-    'Select color',
-    product.colors.map((c, i) => ({
-      id: `sm_color_${c.id ?? i}`,
-      title: c.color_name.slice(0, 24),
-      description: c.color_hex ? c.color_hex : undefined,
-    })),
-    'Colors'
-  )
+function formatColorPrompt(color: { color_name: string; color_hex: string | null }): string {
+  const name = color.color_name.trim()
+  const hex = color.color_hex?.trim()
+  if (hex) return `${name}\n${hex}\n\nIs this your color?`
+  return `${name}\n\nIs this your color?`
+}
+
+async function sendColorPrompt(phone: string, product: SodamaxProduct, index: number): Promise<void> {
+  const color = product.colors[index]
+  if (!color) return
+
+  await sendWhatsAppButtons(phone, formatColorPrompt(color), [
+    { id: 'sm_color_yes', title: 'Yes' },
+    { id: 'sm_color_no', title: 'No' },
+  ])
+}
+
+async function beginColorSelection(phone: string, product: SodamaxProduct): Promise<void> {
+  await updateSession(phone, {
+    state: 'awaiting_color_selection',
+    selected_item_id: product.id,
+    quantity: 0,
+    city: null,
+    address: null,
+    customer_name: null,
+    total: null,
+    draft_order_id: null,
+  })
+  await sendColorPrompt(phone, product, 0)
 }
 
 async function proceedToQuantityAfterColor(
@@ -283,11 +291,7 @@ async function handleProductSelection(phone: string, input: MessageInput): Promi
   }
 
   if (product.colors.length > 0) {
-    await updateSession(phone, {
-      state: 'awaiting_color_selection',
-      selected_item_id: product.id,
-    })
-    await sendColorList(phone, product)
+    await beginColorSelection(phone, product)
     return
   }
 
@@ -299,33 +303,49 @@ async function handleColorSelection(
   session: SodamaxSession,
   input: MessageInput
 ): Promise<void> {
-  const colorKey = parseColorSelection(input)
-  if (!colorKey || !session.selected_item_id) {
-    await sendWhatsAppText(phone, 'Please select a color from the list.')
-    return
-  }
-
-  const product = await findSodamaxProductById(session.selected_item_id)
-  if (!product) {
+  if (!session.selected_item_id) {
     await sendProcessError(phone)
     return
   }
 
-  const color =
-    product.colors.find(c => c.id === colorKey) ??
-    product.colors[parseInt(colorKey, 10)]
+  const product = await findSodamaxProductById(session.selected_item_id)
+  if (!product || product.colors.length === 0) {
+    await sendProcessError(phone)
+    return
+  }
+
+  const colorIndex = session.quantity ?? 0
+  const color = product.colors[colorIndex]
 
   if (!color) {
-    await sendWhatsAppText(phone, 'Please select a color from the list.')
+    await beginColorSelection(phone, product)
     return
   }
 
-  if (await isNewMachineProductId(session.selected_item_id)) {
-    await proceedToQuantityAfterColor(phone, product, color.color_name)
+  if (isColorYesAnswer(input)) {
+    if (await isNewMachineProductId(session.selected_item_id)) {
+      await proceedToQuantityAfterColor(phone, product, color.color_name)
+      return
+    }
+    await startProductOrder(phone, product, color.color_name)
     return
   }
 
-  await startProductOrder(phone, product, color.color_name)
+  if (isColorNoAnswer(input)) {
+    const nextIndex = colorIndex + 1
+    if (nextIndex >= product.colors.length) {
+      await sendWhatsAppText(phone, 'That was the last color. Please tap *Yes* on your preferred color.')
+      await updateSession(phone, { quantity: 0 })
+      await sendColorPrompt(phone, product, 0)
+      return
+    }
+    await updateSession(phone, { quantity: nextIndex })
+    await sendColorPrompt(phone, product, nextIndex)
+    return
+  }
+
+  await sendWhatsAppText(phone, 'Please tap *Yes* or *No*.')
+  await sendColorPrompt(phone, product, colorIndex)
 }
 
 async function startProductOrder(
@@ -568,10 +588,6 @@ async function sendOrderSummary(phone: string, session: SodamaxSession): Promise
     `Quantity: ${session.quantity ?? '—'}`,
     `Region: ${session.city ?? '—'}`,
     `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
-    '',
-    DELIVERY_CONFIRMATION_MESSAGE,
-    '',
-    'Confirm this order?',
   ].join('\n')
 
   await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])

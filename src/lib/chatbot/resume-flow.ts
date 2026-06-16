@@ -2,7 +2,7 @@ import { sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList } from '@/lib/w
 import { findItemById, getItemLabel } from './products'
 import { sendProductList } from './product-list'
 import { sendCityList } from './regions'
-import { QUANTITY_OPTIONS, REMINDER_MESSAGE, MAIN_MENU_BUTTONS } from './constants'
+import { QUANTITY_OPTIONS, REMINDER_MESSAGE, MAIN_MENU_BUTTONS, formatTotal } from './constants'
 import type { WhatsAppSession } from './types'
 
 async function sendOrderDecisionButtons(phone: string): Promise<void> {
@@ -68,8 +68,7 @@ export async function resumeSessionFlow(phone: string, session: WhatsAppSession)
         `Product: ${productLabel}`,
         `Quantity: ${session.quantity ?? '—'}`,
         `Region: ${session.city ?? '—'}`,
-        '',
-        'Confirm this order?',
+        `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
       ].join('\n')
 
       await sendWhatsAppButtons(phone, summary, [{ id: 'confirm_yes', title: 'Confirm order' }])

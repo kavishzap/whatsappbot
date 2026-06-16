@@ -44,6 +44,14 @@ export function isSeeMoreAnswer(input: MessageInput): boolean {
   return input.type === 'button' && input.value === 'sm_order_see_more'
 }
 
+export function isColorYesAnswer(input: MessageInput): boolean {
+  return input.type === 'button' && input.value === 'sm_color_yes'
+}
+
+export function isColorNoAnswer(input: MessageInput): boolean {
+  return input.type === 'button' && input.value === 'sm_color_no'
+}
+
 export function parseProductSelection(input: MessageInput): string | null {
   if (
     (input.type === 'list' || input.type === 'button') &&
@@ -58,13 +66,6 @@ export function parseProductListPage(input: MessageInput): number | null {
   if (input.type !== 'button' || !input.value.startsWith('sm_product_pg_')) return null
   const n = parseInt(input.value.replace('sm_product_pg_', ''), 10)
   return Number.isNaN(n) || n < 0 ? null : n
-}
-
-export function parseColorSelection(input: MessageInput): string | null {
-  if (input.type === 'list' && input.value.startsWith('sm_color_')) {
-    return input.value.replace('sm_color_', '')
-  }
-  return null
 }
 
 export function parseQuantitySelection(input: MessageInput): number | 'custom' | null {

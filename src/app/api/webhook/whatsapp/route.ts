@@ -1,6 +1,7 @@
 import { handleChatbotMessage } from '@/lib/chatbot/flow'
 import { handleSodamaxMessage } from '@/lib/sodamax/flow'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
+import { logWhatsAppInbound } from '@/lib/whatsapp-log'
 import { resolveWhatsAppLine, runWithWhatsAppLine } from '@/lib/whatsapp-line'
 import type { IncomingWhatsAppMessage } from '@/lib/chatbot/types'
 
@@ -48,34 +49,30 @@ export async function POST(request: Request) {
 
   const value = (body as { entry?: { changes?: { value?: unknown }[] }[] })
     .entry?.[0]?.changes?.[0]?.value as {
-    metadata?: { phone_number_id?: string }
+    metadata?: { phone_number_id?: string; display_phone_number?: string }
+    contacts?: unknown[]
     messages?: IncomingWhatsAppMessage[]
+    statuses?: unknown[]
   } | undefined
 
-  const message = value?.messages?.[0]
   const phoneNumberId = value?.metadata?.phone_number_id
+  const line = resolveWhatsAppLine(phoneNumberId)
+  const message = value?.messages?.[0]
+
+  logWhatsAppInbound({
+    line,
+    phoneNumberId,
+    displayPhoneNumber: value?.metadata?.display_phone_number,
+    message,
+    messages: value?.messages,
+    statuses: value?.statuses,
+    contacts: value?.contacts,
+    webhook: body,
+  })
 
   if (!message) {
     return new Response('OK', { status: 200 })
   }
-
-  const line = resolveWhatsAppLine(phoneNumberId)
-
-  const preview =
-    message.type === 'text'
-      ? message.text?.body
-      : message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title
-
-  console.log(
-    'WhatsApp inbound:',
-    JSON.stringify({
-      line,
-      phoneNumberId,
-      from: message.from,
-      type: message.type,
-      preview,
-    })
-  )
 
   const handler =
     line === 'sodamax'

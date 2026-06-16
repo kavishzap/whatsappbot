@@ -497,10 +497,6 @@ async function sendOrderSummary(phone: string, session: WhatsAppSession): Promis
     `Quantity: ${session.quantity ?? '—'}`,
     `Region: ${session.city ?? '—'}`,
     `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
-    '',
-    DELIVERY_CONFIRMATION_MESSAGE,
-    '',
-    'Confirm this order?',
   ].join('\n')
 
   await sendWhatsAppButtons(phone, summary, [{ id: 'confirm_yes', title: 'Confirm order' }])
