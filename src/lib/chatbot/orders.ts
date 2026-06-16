@@ -1,4 +1,6 @@
-import { getServiceClient } from '@/lib/supabase/admin'
+import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
+import { getCurrentWhatsAppLine } from '@/lib/whatsapp-line'
+import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 
 export interface OrderPayload {
   customer_name: string
@@ -8,72 +10,88 @@ export interface OrderPayload {
   city: string
   address: string
   total: number
+  status?: 'draft' | 'pending'
+  company?: WhatsAppCompany
 }
 
-function formatOrderDate(date: Date): string {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return `${year}${month}${day}`
+interface CreatedOrder {
+  id: string
+  order_ref: string
+  status: string
 }
 
-async function generateOrderRef(): Promise<string> {
-  const supabase = getServiceClient()
-  const datePart = formatOrderDate(new Date())
-  const prefix = `ORD-${datePart}-`
-
-  const { count, error } = await supabase
-    .from('whatsapp_bot_orders')
-    .select('order_ref', { count: 'exact', head: true })
-    .like('order_ref', `${prefix}%`)
-
-  if (error) throw error
-
-  const sequence = (count ?? 0) + 1
-  return `${prefix}${String(sequence).padStart(3, '0')}`
+function resolveCompany(company?: WhatsAppCompany): WhatsAppCompany {
+  return company ?? getCurrentWhatsAppLine()
 }
 
+export async function createDraftOrder(
+  payload: Omit<OrderPayload, 'customer_name' | 'address' | 'status'>
+): Promise<{ success: boolean; orderId?: string; orderRef?: string; error?: string }> {
+  try {
+    const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
+      method: 'POST',
+      body: {
+        ...payload,
+        company: resolveCompany(payload.company),
+        customer_name: 'Draft',
+        address: '—',
+        status: 'draft',
+      },
+    })
+
+    return {
+      success: true,
+      orderId: result.data?.id,
+      orderRef: result.data?.order_ref,
+    }
+  } catch (err) {
+    console.error('createDraftOrder error:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Could not save draft order.',
+    }
+  }
+}
+
+export async function completeDraftOrder(
+  orderId: string,
+  payload: Pick<OrderPayload, 'customer_name'>,
+  company?: WhatsAppCompany
+): Promise<{ success: boolean; orderRef?: string; error?: string }> {
+  try {
+    const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
+      method: 'PATCH',
+      body: {
+        id: orderId,
+        status: 'pending',
+        customer_name: payload.customer_name,
+        company: resolveCompany(company),
+      },
+    })
+
+    return { success: true, orderRef: result.data?.order_ref }
+  } catch (err) {
+    console.error('completeDraftOrder error:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Could not confirm your order.',
+    }
+  }
+}
+
+/** @deprecated Use createDraftOrder + completeDraftOrder */
 export async function saveOrder(
   payload: OrderPayload
 ): Promise<{ success: boolean; orderRef?: string; error?: string }> {
   try {
-    const supabase = getServiceClient()
+    const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
+      method: 'POST',
+      body: { ...payload, company: resolveCompany(payload.company), status: 'pending' },
+    })
 
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const order_ref = await generateOrderRef()
-
-      const { data, error } = await supabase
-        .from('whatsapp_bot_orders')
-        .insert({
-          order_ref,
-          customer_name: payload.customer_name,
-          customer_phone_number: payload.customer_phone_number,
-          product_name: payload.product_name,
-          quantity: payload.quantity,
-          city: payload.city,
-          address: payload.address,
-          total: payload.total,
-          status: 'pending',
-        })
-        .select('order_ref')
-        .single()
-
-      if (error?.code === '23505') continue
-
-      if (error) {
-        console.error('saveOrder db error:', error.message)
-        return {
-          success: false,
-          error: error.message || 'Could not save your order. Please try again later.',
-        }
-      }
-
-      return { success: true, orderRef: data.order_ref }
-    }
-
-    return { success: false, error: 'Could not generate a unique order reference.' }
+    return { success: true, orderRef: result.data?.order_ref }
   } catch (err) {
-    console.error('saveOrder exception:', err)
+    console.error('saveOrder error:', err)
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Something went wrong while saving your order.',

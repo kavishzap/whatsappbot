@@ -1,7 +1,10 @@
-export type OrderStatus = 'pending' | 'approved' | 'rejected'
+import type { WhatsAppCompany } from '@/lib/whatsapp-company'
+
+export type OrderStatus = 'draft' | 'pending' | 'approved' | 'rejected'
 
 export interface WhatsAppBotOrder {
   id: string
+  company: WhatsAppCompany
   order_ref: string
   customer_name: string
   customer_phone_number: string
@@ -21,8 +24,8 @@ interface ApiResponse<T> {
   error?: string
 }
 
-export async function fetchBotOrders(): Promise<WhatsAppBotOrder[]> {
-  const res = await fetch('/api/whatsapp-bot-orders')
+export async function fetchBotOrders(company: WhatsAppCompany): Promise<WhatsAppBotOrder[]> {
+  const res = await fetch(`/api/whatsapp-bot-orders?company=${company}`)
   const json: ApiResponse<WhatsAppBotOrder[]> = await res.json()
 
   if (!res.ok || !json.success) {
@@ -36,18 +39,20 @@ export async function fetchBotOrders(): Promise<WhatsAppBotOrder[]> {
 }
 
 export function normalizeOrderStatus(status: string | null | undefined): OrderStatus {
+  if (status === 'draft') return 'draft'
   if (status === 'approved' || status === 'rejected') return status
   return 'pending'
 }
 
 export async function updateOrderStatus(
   id: string,
-  status: OrderStatus
+  status: OrderStatus,
+  company: WhatsAppCompany
 ): Promise<WhatsAppBotOrder> {
   const res = await fetch('/api/whatsapp-bot-orders', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, status }),
+    body: JSON.stringify({ id, status, company }),
   })
   const json: ApiResponse<WhatsAppBotOrder> = await res.json()
 

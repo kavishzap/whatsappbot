@@ -22,7 +22,7 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 function ToastIcon({ type }: { type: ToastType }) {
   if (type === 'success') {
     return (
-      <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 text-brand-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     )
@@ -35,7 +35,7 @@ function ToastIcon({ type }: { type: ToastType }) {
     )
   }
   return (
-    <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-5 h-5 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
@@ -69,20 +69,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 w-full max-w-sm px-4 sm:px-0 pointer-events-none"
+        className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 w-full max-w-sm px-4 sm:px-0 pointer-events-none"
       >
         {toasts.map(t => (
           <div
             key={t.id}
             role="alert"
-            className="pointer-events-auto flex items-start gap-3 bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 animate-slide-in"
+            className="pointer-events-auto flex items-start gap-3 bg-white border border-ink-200/80 rounded-2xl shadow-panel px-4 py-3.5 animate-slide-in"
           >
             <ToastIcon type={t.type} />
-            <p className="text-sm text-gray-700 flex-1 leading-snug pt-0.5">{t.message}</p>
+            <p className="text-sm text-ink-700 flex-1 leading-snug pt-0.5">{t.message}</p>
             <button
               type="button"
               onClick={() => dismiss(t.id)}
-              className="text-gray-400 hover:text-gray-600 shrink-0 p-0.5 -mr-1"
+              className="text-ink-400 hover:text-ink-600 shrink-0 p-0.5 rounded-lg"
               aria-label="Dismiss"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

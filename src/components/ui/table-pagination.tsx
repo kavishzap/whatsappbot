@@ -24,21 +24,21 @@ export function TablePagination({
   onPageSizeChange,
 }: TablePaginationProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-gray-50/60 shrink-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 border-t border-ink-100 bg-ink-50/50 shrink-0">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-        <p className="text-xs text-gray-500">
-          Showing <span className="font-medium text-gray-700">{rangeStart}–{rangeEnd}</span> of{' '}
-          <span className="font-medium text-gray-700">{totalItems}</span>
+        <p className="text-sm text-ink-500">
+          Showing <span className="font-semibold text-ink-700">{rangeStart}–{rangeEnd}</span> of{' '}
+          <span className="font-semibold text-ink-700">{totalItems}</span>
         </p>
         <div className="flex items-center gap-2">
-          <label htmlFor="rows-per-page" className="text-xs text-gray-500 whitespace-nowrap">
-            Rows per page
+          <label htmlFor="rows-per-page" className="text-sm text-ink-500 whitespace-nowrap">
+            Rows
           </label>
           <select
             id="rows-per-page"
             value={pageSize}
             onChange={e => onPageSizeChange(Number(e.target.value))}
-            className="h-8 pl-2 pr-7 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400 cursor-pointer"
+            className="h-8 pl-2.5 pr-8 text-sm font-medium text-ink-700 bg-white border border-ink-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ring)] cursor-pointer"
           >
             {PAGE_SIZE_OPTIONS.map(size => (
               <option key={size} value={size}>
@@ -48,23 +48,23 @@ export function TablePagination({
           </select>
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="btn-secondary !py-2 !px-3.5 text-sm disabled:opacity-40"
         >
           Previous
         </button>
-        <span className="px-2 text-xs text-gray-500 tabular-nums min-w-[4.5rem] text-center">
+        <span className="px-2 text-sm font-medium text-ink-500 tabular-nums min-w-[4.5rem] text-center">
           {page} / {totalPages}
         </span>
         <button
           type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="btn-secondary !py-2 !px-3.5 text-sm disabled:opacity-40"
         >
           Next
         </button>

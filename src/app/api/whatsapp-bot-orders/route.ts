@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
-import { getServiceClient } from '@/lib/supabase/admin'
+import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { isAllowedRole } from '@/lib/auth'
 
 async function requireAuth() {
@@ -22,27 +22,30 @@ async function requireAuth() {
   return user
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await requireAuth()
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = getServiceClient()
-
-  const { data, error } = await supabase
-    .from('whatsapp_bot_orders')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  const company = new URL(request.url).searchParams.get('company')
+  if (company !== 'spark' && company !== 'sodamax') {
+    return NextResponse.json(
+      { success: false, error: 'Missing or invalid company (spark|sodamax)' },
+      { status: 400 }
+    )
   }
 
-  return NextResponse.json({ success: true, data })
+  try {
+    const result = await invokeEdgeFunction('whatsapp-bot-orders', {
+      query: { company },
+    })
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
 }
-
-const VALID_STATUSES = ['pending', 'approved', 'rejected'] as const
 
 export async function PATCH(request: Request) {
   const user = await requireAuth()
@@ -50,30 +53,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { id?: string; status?: string }
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+    const body = await request.json()
+    const result = await invokeEdgeFunction('whatsapp-bot-orders', {
+      method: 'PATCH',
+      body,
+    })
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-
-  const { id, status } = body
-  if (!id || !status || !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
-    return NextResponse.json({ success: false, error: 'Invalid id or status' }, { status: 400 })
-  }
-
-  const supabase = getServiceClient()
-
-  const { data, error } = await supabase
-    .from('whatsapp_bot_orders')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select('*')
-    .single()
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true, data })
 }

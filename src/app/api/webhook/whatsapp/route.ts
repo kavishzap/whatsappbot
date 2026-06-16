@@ -1,16 +1,37 @@
 import { handleChatbotMessage } from '@/lib/chatbot/flow'
+import { handleSodamaxMessage } from '@/lib/sodamax/flow'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
+import { resolveWhatsAppLine, runWithWhatsAppLine } from '@/lib/whatsapp-line'
 import type { IncomingWhatsAppMessage } from '@/lib/chatbot/types'
 
-export async function GET(request: Request) {
+function getVerifyToken() {
+  return (
+    process.env.META_VERIFY_TOKEN?.trim() ||
+    process.env.WHATSAPP_VERIFY_TOKEN?.trim() ||
+    ''
+  )
+}
+
+function getQueryParam(request: Request, ...keys: string[]) {
   const { searchParams } = new URL(request.url)
+  for (const key of keys) {
+    const value = searchParams.get(key)
+    if (value) return value
+  }
+  return null
+}
 
-  const mode = searchParams.get('hub.mode')
-  const token = searchParams.get('hub.verify_token')
-  const challenge = searchParams.get('hub.challenge')
+export async function GET(request: Request) {
+  const mode = getQueryParam(request, 'hub.mode', 'hub_mode')
+  const token = getQueryParam(request, 'hub.verify_token', 'hub_verify_token')
+  const challenge = getQueryParam(request, 'hub.challenge', 'hub_challenge')
+  const verifyToken = getVerifyToken()
 
-  if (mode === 'subscribe' && token === process.env.META_VERIFY_TOKEN) {
-    return new Response(challenge, { status: 200 })
+  if (mode === 'subscribe' && token && challenge && token === verifyToken) {
+    return new Response(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   }
 
   return new Response('Forbidden', { status: 403 })
@@ -22,33 +43,52 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return Response.json({ received: true })
+    return new Response('OK', { status: 200 })
   }
-
-  console.log('Webhook payload:', JSON.stringify(body, null, 2))
 
   const value = (body as { entry?: { changes?: { value?: unknown }[] }[] })
     .entry?.[0]?.changes?.[0]?.value as {
+    metadata?: { phone_number_id?: string }
     messages?: IncomingWhatsAppMessage[]
   } | undefined
 
   const message = value?.messages?.[0]
+  const phoneNumberId = value?.metadata?.phone_number_id
 
   if (!message) {
-    console.log('No message in payload (likely status update)')
-    return Response.json({ received: true })
+    return new Response('OK', { status: 200 })
   }
 
-  console.log('Message type:', message.type, 'From:', message.from)
+  const line = resolveWhatsAppLine(phoneNumberId)
 
-  // Respond to Meta immediately; process the bot flow in the background.
-  handleChatbotMessage(message).catch(error => {
-    if (isWhatsAppAuthError(error)) {
-      console.error('WhatsApp auth error:', error.message)
-      return
-    }
-    console.error('Webhook handler error:', error)
+  const preview =
+    message.type === 'text'
+      ? message.text?.body
+      : message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title
+
+  console.log(
+    'WhatsApp inbound:',
+    JSON.stringify({
+      line,
+      phoneNumberId,
+      from: message.from,
+      type: message.type,
+      preview,
+    })
+  )
+
+  const handler =
+    line === 'sodamax'
+      ? () => handleSodamaxMessage(message)
+      : () => handleChatbotMessage(message)
+
+  runWithWhatsAppLine(line, () => {
+    handler().catch(error => {
+      if (!isWhatsAppAuthError(error)) {
+        console.error('Webhook handler error:', error)
+      }
+    })
   })
 
-  return Response.json({ received: true })
+  return new Response('OK', { status: 200 })
 }

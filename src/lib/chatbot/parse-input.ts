@@ -57,7 +57,7 @@ function matchesAny(normalized: string, patterns: string[]): boolean {
 
 export function isYesAnswer(input: MessageInput): boolean {
   if (input.type === 'button' || input.type === 'list') {
-    return input.value === 'order_yes' || input.value === 'confirm_yes' || input.value === 'price_continue'
+    return input.value === 'order_yes' || input.value === 'confirm_yes'
   }
   const n = normalize(input.value)
   return matchesAny(n, YES_PATTERNS)
@@ -65,7 +65,7 @@ export function isYesAnswer(input: MessageInput): boolean {
 
 export function isNoAnswer(input: MessageInput): boolean {
   if (input.type === 'button' || input.type === 'list') {
-    return input.value === 'order_no' || input.value === 'confirm_no' || input.value === 'price_cancel'
+    return input.value === 'confirm_no'
   }
   const n = normalize(input.value)
   return matchesAny(n, NO_PATTERNS)
@@ -77,8 +77,37 @@ export function isSeeMoreAnswer(input: MessageInput): boolean {
   return matchesAny(n, SEE_MORE_PATTERNS)
 }
 
+export function parseMenuSelection(input: MessageInput): string | null {
+  if (input.type === 'button' && input.value.startsWith('menu_')) {
+    return input.value
+  }
+
+  if (input.type === 'list' && input.value.startsWith('menu_')) {
+    return input.value
+  }
+
+  if (input.type === 'text') {
+    const n = normalize(input.value)
+    if (n === 'order' || matchesAny(n, ['order a product', 'order product', 'place order', 'buy'])) {
+      return 'menu_order_product'
+    }
+    if (matchesAny(n, ['other query', 'other question', 'question', 'help', 'support', 'query'])) {
+      return 'menu_other_query'
+    }
+    if (matchesAny(n, ['menu', 'start', 'hi', 'hello'])) {
+      return 'menu_show'
+    }
+  }
+
+  return null
+}
+
 export function parseProductSelection(input: MessageInput): string | null {
   if (input.type === 'list' && input.value.startsWith('product_')) {
+    return input.value.replace('product_', '')
+  }
+
+  if (input.type === 'button' && input.value.startsWith('product_')) {
     return input.value.replace('product_', '')
   }
 
@@ -88,6 +117,12 @@ export function parseProductSelection(input: MessageInput): string | null {
   }
 
   return null
+}
+
+export function parseProductListPage(input: MessageInput): number | null {
+  if (input.type !== 'button' || !input.value.startsWith('product_pg_')) return null
+  const n = parseInt(input.value.replace('product_pg_', ''), 10)
+  return Number.isNaN(n) || n < 0 ? null : n
 }
 
 export function parseQuantitySelection(input: MessageInput): number | 'custom' | null {
@@ -142,12 +177,6 @@ export function parseQuantity(input: MessageInput): number | null {
 export function parseCitySelection(input: MessageInput): string | null {
   if (input.type === 'list' && input.value.startsWith('city_')) {
     return getDistrictNameById(input.value)
-  }
-
-  if (input.type === 'text') {
-    const city = input.value.trim()
-    if (city.length < 2) return null
-    return city
   }
 
   return null

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
-import { getServiceClient } from '@/lib/supabase/admin'
+import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { isAllowedRole } from '@/lib/auth'
-
-const LIST_COLUMNS =
-  'id, ad_link, product_name, price, description, created_at, updated_at'
+import { isWhatsAppCompany } from '@/lib/whatsapp-company'
 
 async function requireAuth() {
   const supabase = createAuthClient()
@@ -31,35 +29,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const id = request.nextUrl.searchParams.get('id')
+  const id = request.nextUrl.searchParams.get('id') ?? undefined
+  const company = request.nextUrl.searchParams.get('company') ?? undefined
+
+  if (!id && !isWhatsAppCompany(company)) {
+    return NextResponse.json(
+      { success: false, error: 'Missing or invalid company (spark|sodamax)' },
+      { status: 400 }
+    )
+  }
 
   try {
-    const supabase = getServiceClient()
-
-    if (id) {
-      const { data, error } = await supabase
-        .from('whatsapp_bot_items')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-      if (error) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-      }
-
-      return NextResponse.json({ success: true, data })
-    }
-
-    const { data, error } = await supabase
-      .from('whatsapp_bot_items')
-      .select(LIST_COLUMNS)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, data })
+    const result = await invokeEdgeFunction('whatsapp-bot-items', {
+      query: { id, company },
+    })
+    return NextResponse.json({ success: true, data: result.data })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })
@@ -72,26 +56,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const supabase = getServiceClient()
-
-  const { data, error } = await supabase
-    .from('whatsapp_bot_items')
-    .insert({
-      ad_link: body.ad_link,
-      product_name: body.product_name,
-      price: body.price,
-      image_base64: body.image_base64,
-      description: body.description,
+  try {
+    const body = await request.json()
+    const company = isWhatsAppCompany(body.company) ? body.company : 'spark'
+    const result = await invokeEdgeFunction('whatsapp-bot-items', {
+      method: 'POST',
+      query: { company },
+      body,
     })
-    .select()
-    .single()
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-
-  return NextResponse.json({ success: true, data })
 }
 
 export async function PUT(request: NextRequest) {
@@ -105,27 +82,21 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 })
   }
 
-  const body = await request.json()
-  const supabase = getServiceClient()
-
-  const { data, error } = await supabase
-    .from('whatsapp_bot_items')
-    .update({
-      ad_link: body.ad_link,
-      product_name: body.product_name,
-      price: body.price,
-      image_base64: body.image_base64,
-      description: body.description,
+  try {
+    const body = await request.json()
+    const company = isWhatsAppCompany(body.company)
+      ? body.company
+      : request.nextUrl.searchParams.get('company') ?? undefined
+    const result = await invokeEdgeFunction('whatsapp-bot-items', {
+      method: 'PUT',
+      query: { id, company },
+      body,
     })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-
-  return NextResponse.json({ success: true, data })
 }
 
 export async function DELETE(request: NextRequest) {
@@ -139,13 +110,14 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 })
   }
 
-  const supabase = getServiceClient()
-
-  const { error } = await supabase.from('whatsapp_bot_items').delete().eq('id', id)
-
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  try {
+    const result = await invokeEdgeFunction('whatsapp-bot-items', {
+      method: 'DELETE',
+      query: { id },
+    })
+    return NextResponse.json({ success: true, message: result.message })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-
-  return NextResponse.json({ success: true, message: 'Item deleted successfully' })
 }

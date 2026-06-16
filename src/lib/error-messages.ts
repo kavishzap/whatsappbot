@@ -69,3 +69,15 @@ export function validateBotItemRow(row: {
 
   return null
 }
+
+export function validateProductColors(colors: { colorName: string }[]): string | null {
+  const validColors = colors.filter(c => c.colorName.trim())
+  if (validColors.length === 0) return null
+
+  const names = validColors.map(c => c.colorName.trim().toLowerCase())
+  if (new Set(names).size !== names.length) {
+    return 'Each color name must be unique for this product.'
+  }
+
+  return null
+}

@@ -95,12 +95,14 @@ interface OrderReceiptModalProps {
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const styles: Record<OrderStatus, string> = {
+    draft: 'bg-slate-100 text-slate-600 ring-slate-200',
     pending: 'bg-amber-50 text-amber-700 ring-amber-100',
     approved: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     rejected: 'bg-red-50 text-red-700 ring-red-100',
   }
 
   const labels: Record<OrderStatus, string> = {
+    draft: 'Draft',
     pending: 'Pending',
     approved: 'Approved',
     rejected: 'Rejected',

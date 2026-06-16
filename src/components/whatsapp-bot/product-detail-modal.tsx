@@ -4,6 +4,12 @@ import { useEffect, useRef } from 'react'
 import { fileToBase64, toImageSrc } from '@/lib/whatsapp-bot-items'
 import { useToast } from '@/components/ui/toast'
 
+export interface ProductColorRow {
+  id: string
+  colorName: string
+  colorHex: string
+}
+
 export interface ProductDetailRow {
   id: string
   productName: string
@@ -12,21 +18,30 @@ export interface ProductDetailRow {
   imageBase64: string | null
   imagePreview: string | null
   description: string
+  colors: ProductColorRow[]
   isNew: boolean
 }
 
 interface ProductDetailModalProps {
   row: ProductDetailRow | null
   saving?: boolean
+  showColors?: boolean
   onClose: () => void
   onSave: () => void
   onUpdate: (id: string, updates: Partial<ProductDetailRow>) => void
   onDelete?: () => void
 }
 
+const DEFAULT_HEX = '#10b981'
+
+export function createEmptyColor(): ProductColorRow {
+  return { id: crypto.randomUUID(), colorName: '', colorHex: DEFAULT_HEX }
+}
+
 export function ProductDetailModal({
   row,
   saving = false,
+  showColors = false,
   onClose,
   onSave,
   onUpdate,
@@ -64,6 +79,20 @@ export function ProductDetailModal({
     e.target.value = ''
   }
 
+  const updateColor = (colorId: string, updates: Partial<ProductColorRow>) => {
+    onUpdate(row.id, {
+      colors: row.colors.map(c => (c.id === colorId ? { ...c, ...updates } : c)),
+    })
+  }
+
+  const addColor = () => {
+    onUpdate(row.id, { colors: [...row.colors, createEmptyColor()] })
+  }
+
+  const removeColor = (colorId: string) => {
+    onUpdate(row.id, { colors: row.colors.filter(c => c.id !== colorId) })
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
@@ -71,24 +100,24 @@ export function ProductDetailModal({
         aria-label="Close product details"
         onClick={onClose}
         disabled={saving}
-        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm disabled:cursor-not-allowed"
+        className="absolute inset-0 bg-ink-950/50 backdrop-blur-sm disabled:cursor-not-allowed"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-detail-title"
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in"
+        className="relative bg-white rounded-2xl shadow-card border border-ink-200/80 w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in"
       >
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 shrink-0">
-          <h2 id="product-detail-title" className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-ink-100 shrink-0">
+          <h2 id="product-detail-title" className="text-lg font-bold text-ink-900 tracking-tight">
             {row.isNew ? 'Add product' : 'Edit product'}
           </h2>
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors shrink-0"
+            className="p-1.5 rounded-lg text-ink-400 hover:text-ink-700 hover:bg-ink-100 disabled:opacity-50 transition-colors shrink-0"
             aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +139,7 @@ export function ProductDetailModal({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="group relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                className="group relative rounded-xl overflow-hidden border border-ink-200 bg-ink-50 focus:outline-none focus:ring-4 focus:ring-[var(--ring)]"
               >
                 {imageSrc ? (
                   <img
@@ -180,37 +209,83 @@ export function ProductDetailModal({
               onChange={e => onUpdate(row.id, { description: e.target.value })}
               placeholder="Describe the product for customers…"
               rows={6}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400 resize-y min-h-[120px]"
+              className="input-field resize-y min-h-[120px] h-auto py-2.5"
             />
           </DetailField>
+
+          {showColors && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-[11px] font-semibold text-ink-400 uppercase tracking-wider">Colors</p>
+                  <p className="text-[10px] text-ink-400 mt-0.5">Optional</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addColor}
+                  className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                >
+                  + Add color
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {row.colors.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-2">
+                    No colors added. Click &quot;Add color&quot; if this product has variants.
+                  </p>
+                ) : (
+                  row.colors.map((color, index) => (
+                    <div key={color.id} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-5 text-center shrink-0">{index + 1}</span>
+                      <input
+                        type="color"
+                        value={color.colorHex || DEFAULT_HEX}
+                        onChange={e => updateColor(color.id, { colorHex: e.target.value })}
+                        className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer shrink-0 p-0.5"
+                        title="Pick color"
+                      />
+                      <input
+                        type="text"
+                        value={color.colorName}
+                        onChange={e => updateColor(color.id, { colorName: e.target.value })}
+                        placeholder="e.g. Navy Blue"
+                        className={`${inputClass} flex-1 min-w-0`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeColor(color.id)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"
+                        title="Remove color"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0 space-y-2">
+        <div className="px-6 py-4 border-t border-ink-100 shrink-0 space-y-2">
           {!row.isNew && onDelete && (
             <button
               type="button"
               onClick={onDelete}
               disabled={saving}
-              className="w-full py-2 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              className="w-full btn-ghost text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               Delete product
             </button>
           )}
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            >
+            <button type="button" onClick={onClose} disabled={saving} className="flex-1 btn-secondary">
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving}
-              className="flex-1 py-2.5 text-sm font-medium rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            >
+            <button type="button" onClick={onSave} disabled={saving} className="flex-1 btn-primary">
               {saving ? (
                 <>
                   <Spinner />
@@ -227,13 +302,12 @@ export function ProductDetailModal({
   )
 }
 
-const inputClass =
-  'w-full h-10 border border-gray-200 rounded-lg px-3 text-sm text-gray-800 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400'
+const inputClass = 'input-field h-10'
 
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
+      <p className="text-[11px] font-semibold text-ink-400 uppercase tracking-wider mb-1.5">{label}</p>
       {children}
     </div>
   )

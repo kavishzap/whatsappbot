@@ -31,8 +31,9 @@ function parseApiError(result: { error?: { message?: string; code?: number; erro
   throw new Error(message)
 }
 
+import { getCurrentWhatsAppLine, getPhoneNumberIdForLine } from './whatsapp-line'
+
 function getConfig() {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
   const accessToken = (
     process.env.META_ACCESS_TOKEN ??
     process.env.WHATSAPP_ACCESS_TOKEN
@@ -46,11 +47,8 @@ function getConfig() {
     )
   }
 
-  if (!phoneNumberId) {
-    throw new Error(
-      'WHATSAPP_PHONE_NUMBER_ID is not set. Add it to .env.local and restart the dev server.'
-    )
-  }
+  const line = getCurrentWhatsAppLine()
+  const phoneNumberId = getPhoneNumberIdForLine(line)
 
   return { phoneNumberId, accessToken }
 }
@@ -184,11 +182,34 @@ export async function sendWhatsAppButtons(
   })
 }
 
+export async function sendWhatsAppCtaUrl(
+  to: string,
+  bodyText: string,
+  buttonLabel: string,
+  url: string
+) {
+  return sendMessagePayload(to, {
+    type: 'interactive',
+    interactive: {
+      type: 'cta_url',
+      body: { text: bodyText.slice(0, 1024) },
+      action: {
+        name: 'cta_url',
+        parameters: {
+          display_text: buttonLabel.slice(0, 20),
+          url,
+        },
+      },
+    },
+  })
+}
+
 export async function sendWhatsAppList(
   to: string,
   bodyText: string,
   buttonLabel: string,
-  rows: { id: string; title: string; description?: string }[]
+  rows: { id: string; title: string; description?: string }[],
+  sectionTitle = 'Products'
 ) {
   return sendMessagePayload(to, {
     type: 'interactive',
@@ -199,7 +220,7 @@ export async function sendWhatsAppList(
         button: buttonLabel.slice(0, 20),
         sections: [
           {
-            title: 'Products',
+            title: sectionTitle.slice(0, 24),
             rows: rows.slice(0, 10).map(r => ({
               id: r.id,
               title: r.title.slice(0, 24),
