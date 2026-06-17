@@ -84,7 +84,7 @@ export async function findItemByLink(link: string): Promise<BotItem | null> {
   const trimmed = link.trim()
   const items = await fetchAllItems()
 
-  let hit =
+  const hit =
     items.find(item => linksMatch(item.ad_link, trimmed)) ??
     (() => {
       const extracted = extractUrlFromText(trimmed)
