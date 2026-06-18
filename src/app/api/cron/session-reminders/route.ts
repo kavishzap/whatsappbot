@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { processSessionReminders } from '@/lib/chatbot/reminders'
+import { processSessionReminders } from '@/lib/spark/reminders'
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim()

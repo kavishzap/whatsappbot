@@ -8,12 +8,12 @@ import {
   base64ToBuffer,
   isWhatsAppAuthError,
 } from '@/lib/whatsapp'
-import { getCachedMediaId, setCachedMediaId } from '@/lib/chatbot/media-cache'
-import { sendCityList } from '@/lib/chatbot/regions'
-import { createDraftOrder, completeDraftOrder } from '@/lib/chatbot/orders'
-import { extractMessageInput } from '@/lib/chatbot/parse-input'
-import { getSession, updateSession, resetSession, touchInboundActivity } from './session'
-import { findSodamaxProductById, getSodamaxProductLabel, findNewMachineProduct, isNewMachineProductId } from './products'
+import { getCachedMediaId, setCachedMediaId } from '@/lib/spark/media-cache'
+import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
+import { createDraftOrder, completeDraftOrder, patchDraftOrder } from '@/lib/spark/orders'
+import { extractMessageInput, parseProfileName, parseCustomerName } from '@/lib/spark/parse-input'
+import { loadSession, updateSession, resetSession } from './session'
+import { findSodamaxProductById, getSodamaxProductLabel, findNewMachineProduct, isNewMachineProductId, resolveSodamaxProductWithImage } from './products'
 import { sendSodamaxProductList } from './product-list'
 import {
   parseMenuSelection,
@@ -25,8 +25,7 @@ import {
   isColorNoAnswer,
   parseQuantitySelection,
   parseQuantity,
-  parseCitySelection,
-  parseCustomerName,
+  parseAddress,
 } from './parse-input'
 import {
   MAIN_MENU_BUTTONS,
@@ -40,23 +39,18 @@ import {
   PROCESS_ERROR_MESSAGE,
   DELIVERY_CONFIRMATION_MESSAGE,
 } from './constants'
+import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
+import { buildCityIdPatch } from '@/lib/spark/match-city'
 import type { IncomingWhatsAppMessage, MessageInput, SodamaxProduct, SodamaxSession } from './types'
 
 async function sendProcessError(phone: string, reset = true): Promise<void> {
-  try {
-    await sendWhatsAppText(phone, PROCESS_ERROR_MESSAGE)
-  } catch (replyErr) {
-    if (isWhatsAppAuthError(replyErr)) {
-      console.error('SodaMax WhatsApp auth error:', replyErr.message)
-    }
-  }
-  if (reset) {
-    try {
-      await resetSession(phone)
-    } catch {
-      /* ignore */
-    }
-  }
+  await sendProcessErrorWithSupport(phone, {
+    message: PROCESS_ERROR_MESSAGE,
+    ctaLabel: OTHER_QUERY_CTA_LABEL,
+    supportUrl: SUPPORT_WHATSAPP_URL,
+    reset: reset ? () => resetSession(phone) : undefined,
+    logLabel: 'SodaMax',
+  })
 }
 
 export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Promise<void> {
@@ -68,9 +62,7 @@ export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Pr
   let session: SodamaxSession
 
   try {
-    session = await getSession(phone)
-    await touchInboundActivity(phone)
-    session = { ...session, last_inbound_at: new Date().toISOString(), reminder_count: 0 }
+    session = await loadSession(phone)
   } catch (err) {
     console.error('SodaMax session load failed:', err)
     await sendProcessError(phone)
@@ -79,7 +71,7 @@ export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Pr
 
   try {
     if (session.state !== 'idle') {
-      await handleActiveSession(phone, session, input)
+      await handleActiveSession(phone, session, input, message.profile_name)
       return
     }
 
@@ -95,28 +87,30 @@ export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Pr
 }
 
 async function sendMainMenu(phone: string): Promise<void> {
-  await updateSession(phone, {
-    state: 'awaiting_menu_selection',
-    selected_item_id: null,
-    quantity: null,
-    city: null,
-    address: null,
-    customer_name: null,
-    total: null,
-    draft_order_id: null,
-  })
-
-  await sendWhatsAppButtons(
-    phone,
-    WELCOME_MENU_MESSAGE,
-    MAIN_MENU_BUTTONS.map(opt => ({ id: opt.id, title: opt.title }))
-  )
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_menu_selection',
+      selected_item_id: null,
+      quantity: null,
+      city: null,
+      address: null,
+      customer_name: null,
+      total: null,
+      draft_order_id: null,
+    }),
+    sendWhatsAppButtons(
+      phone,
+      WELCOME_MENU_MESSAGE,
+      MAIN_MENU_BUTTONS.map(opt => ({ id: opt.id, title: opt.title }))
+    ),
+  ])
 }
 
 async function handleActiveSession(
   phone: string,
   session: SodamaxSession,
-  input: MessageInput
+  input: MessageInput,
+  profileName?: string
 ): Promise<void> {
   switch (session.state) {
     case 'awaiting_menu_selection':
@@ -132,16 +126,33 @@ async function handleActiveSession(
       await handleOrderDecision(phone, session, input)
       break
     case 'awaiting_quantity':
-      await handleQuantity(phone, session, input)
+      await handleQuantity(phone, session, input, profileName)
       break
     case 'awaiting_quantity_custom':
-      await handleQuantityCustom(phone, session, input)
+      await handleQuantityCustom(phone, session, input, profileName)
       break
-    case 'awaiting_city':
-      await handleCity(phone, session, input)
+    case 'awaiting_region':
+      if (session.quantity && session.selected_item_id) {
+        if (session.total !== null) {
+          await proceedAfterQuantityWithDraft(
+            phone,
+            session,
+            session.quantity,
+            session.total,
+            profileName
+          )
+        } else {
+          await proceedAfterQuantity(phone, session, session.quantity, profileName)
+        }
+      } else {
+        await sendProcessError(phone)
+      }
+      break
+    case 'awaiting_delivery_address':
+      await handleDeliveryAddress(phone, session, input, profileName)
       break
     case 'awaiting_customer_name':
-      await handleCustomerName(phone, session, input)
+      await proceedToConfirmWithProfileName(phone, session, session.city ?? '', profileName, input)
       break
     case 'awaiting_confirm':
       await handleConfirm(phone, session, input)
@@ -207,17 +218,19 @@ async function startNewMachineFlow(phone: string): Promise<void> {
     return
   }
 
-  await updateSession(phone, {
-    state: 'awaiting_quantity',
-    selected_item_id: product.id,
-    quantity: null,
-    city: null,
-    address: null,
-    customer_name: null,
-    total: null,
-    draft_order_id: null,
-  })
-  await askQuantity(phone, product.id)
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_quantity',
+      selected_item_id: product.id,
+      quantity: null,
+      city: null,
+      address: null,
+      customer_name: null,
+      total: null,
+      draft_order_id: null,
+    }),
+    askQuantity(phone, product.id),
+  ])
 }
 
 function formatColorPrompt(color: { color_name: string; color_hex: string | null }): string {
@@ -238,17 +251,19 @@ async function sendColorPrompt(phone: string, product: SodamaxProduct, index: nu
 }
 
 async function beginColorSelection(phone: string, product: SodamaxProduct): Promise<void> {
-  await updateSession(phone, {
-    state: 'awaiting_color_selection',
-    selected_item_id: product.id,
-    quantity: 0,
-    city: null,
-    address: null,
-    customer_name: null,
-    total: null,
-    draft_order_id: null,
-  })
-  await sendColorPrompt(phone, product, 0)
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_color_selection',
+      selected_item_id: product.id,
+      quantity: 0,
+      city: null,
+      address: null,
+      customer_name: null,
+      total: null,
+      draft_order_id: null,
+    }),
+    sendColorPrompt(phone, product, 0),
+  ])
 }
 
 async function proceedToQuantityAfterColor(
@@ -256,17 +271,19 @@ async function proceedToQuantityAfterColor(
   product: SodamaxProduct,
   colorName: string
 ): Promise<void> {
-  await updateSession(phone, {
-    state: 'awaiting_quantity',
-    selected_item_id: product.id,
-    address: colorName,
-    quantity: null,
-    city: null,
-    customer_name: null,
-    total: null,
-    draft_order_id: null,
-  })
-  await askQuantity(phone, product.id)
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_quantity',
+      selected_item_id: product.id,
+      address: colorName,
+      quantity: null,
+      city: null,
+      customer_name: null,
+      total: null,
+      draft_order_id: null,
+    }),
+    askQuantity(phone, product.id),
+  ])
 }
 
 async function handleProductSelection(phone: string, input: MessageInput): Promise<void> {
@@ -334,13 +351,17 @@ async function handleColorSelection(
   if (isColorNoAnswer(input)) {
     const nextIndex = colorIndex + 1
     if (nextIndex >= product.colors.length) {
-      await sendWhatsAppText(phone, 'That was the last color. Please tap *Yes* on your preferred color.')
-      await updateSession(phone, { quantity: 0 })
-      await sendColorPrompt(phone, product, 0)
+      await Promise.all([
+        sendWhatsAppText(phone, 'That was the last color. Please tap *Yes* on your preferred color.'),
+        updateSession(phone, { quantity: 0 }, { previous: session }),
+        sendColorPrompt(phone, product, 0),
+      ])
       return
     }
-    await updateSession(phone, { quantity: nextIndex })
-    await sendColorPrompt(phone, product, nextIndex)
+    await Promise.all([
+      updateSession(phone, { quantity: nextIndex }, { previous: session }),
+      sendColorPrompt(phone, product, nextIndex),
+    ])
     return
   }
 
@@ -355,18 +376,19 @@ async function startProductOrder(
 ): Promise<void> {
   await sendProductContent(phone, product, colorName)
 
-  await updateSession(phone, {
-    state: 'awaiting_order_decision',
-    selected_item_id: product.id,
-    address: colorName,
-    quantity: null,
-    city: null,
-    customer_name: null,
-    total: null,
-    draft_order_id: null,
-  })
-
-  await sendOrderDecisionButtons(phone)
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_order_decision',
+      selected_item_id: product.id,
+      address: colorName,
+      quantity: null,
+      city: null,
+      customer_name: null,
+      total: null,
+      draft_order_id: null,
+    }),
+    sendOrderDecisionButtons(phone),
+  ])
 }
 
 async function sendProductContent(
@@ -374,15 +396,16 @@ async function sendProductContent(
   product: SodamaxProduct,
   colorName: string | null
 ): Promise<void> {
+  const displayProduct = await resolveSodamaxProductWithImage(product)
   let imageSent = false
 
-  if (product.image_base64) {
+  if (displayProduct.image_base64) {
     try {
-      let mediaId = getCachedMediaId(product.id)
+      let mediaId = getCachedMediaId(displayProduct.id)
       if (!mediaId) {
-        const { buffer, mimeType } = base64ToBuffer(product.image_base64)
+        const { buffer, mimeType } = base64ToBuffer(displayProduct.image_base64)
         mediaId = await uploadWhatsAppMedia(buffer, mimeType)
-        setCachedMediaId(product.id, mediaId)
+        setCachedMediaId(displayProduct.id, mediaId)
       }
       await sendWhatsAppImage(phone, mediaId)
       imageSent = true
@@ -392,17 +415,17 @@ async function sendProductContent(
     }
   }
 
-  const description = product.description?.trim()
+  const description = displayProduct.description?.trim()
   if (description) {
     await sendWhatsAppText(phone, description)
   } else {
-    const lines = [`*${getSodamaxProductLabel(product)}*`]
+    const lines = [`*${getSodamaxProductLabel(displayProduct)}*`]
     if (colorName) lines.push(`Color: ${colorName}`)
-    if (product.price > 0) lines.push(formatTotal(product.price))
+    if (displayProduct.price > 0) lines.push(formatTotal(displayProduct.price))
     await sendWhatsAppText(phone, lines.join('\n'))
   }
 
-  if (!imageSent && !description && !colorName && product.price <= 0) {
+  if (!imageSent && !description && !colorName && displayProduct.price <= 0) {
     await sendWhatsAppText(phone, 'Here is the product you requested.')
   }
 }
@@ -456,7 +479,12 @@ async function askQuantity(phone: string, itemId: string | null): Promise<void> 
   ])
 }
 
-async function handleQuantity(phone: string, session: SodamaxSession, input: MessageInput): Promise<void> {
+async function handleQuantity(
+  phone: string,
+  session: SodamaxSession,
+  input: MessageInput,
+  profileName?: string
+): Promise<void> {
   const selection = parseQuantitySelection(input)
 
   if (selection === 'custom') {
@@ -473,13 +501,14 @@ async function handleQuantity(phone: string, session: SodamaxSession, input: Mes
     return
   }
 
-  await proceedAfterQuantity(phone, session, selection)
+  await proceedAfterQuantity(phone, session, selection, profileName)
 }
 
 async function handleQuantityCustom(
   phone: string,
   session: SodamaxSession,
-  input: MessageInput
+  input: MessageInput,
+  profileName?: string
 ): Promise<void> {
   if (input.type !== 'text') {
     await sendWhatsAppText(phone, 'Please type a number for your custom quantity.')
@@ -492,10 +521,22 @@ async function handleQuantityCustom(
     return
   }
 
-  await proceedAfterQuantity(phone, session, qty)
+  await proceedAfterQuantity(phone, session, qty, profileName)
 }
 
-async function proceedAfterQuantity(phone: string, session: SodamaxSession, qty: number): Promise<void> {
+function resolveCustomerName(
+  profileName?: string,
+  session?: Pick<SodamaxSession, 'customer_name'>
+): string | null {
+  return parseProfileName(profileName) ?? parseProfileName(session?.customer_name ?? null)
+}
+
+async function proceedAfterQuantity(
+  phone: string,
+  session: SodamaxSession,
+  qty: number,
+  profileName?: string
+): Promise<void> {
   const product = session.selected_item_id
     ? await findSodamaxProductById(session.selected_item_id)
     : null
@@ -510,24 +551,21 @@ async function proceedAfterQuantity(phone: string, session: SodamaxSession, qty:
     return
   }
 
-  await Promise.all([
-    updateSession(phone, { state: 'awaiting_city', quantity: qty, total }),
-    sendCityList(phone),
-  ])
+  await proceedAfterQuantityWithDraft(phone, session, qty, total, profileName)
 }
 
-async function handleCity(phone: string, session: SodamaxSession, input: MessageInput): Promise<void> {
-  const city = parseCitySelection(input)
-  if (!city) {
-    await sendWhatsAppText(phone, 'Please select your region from the list below.')
-    await sendCityList(phone)
-    return
-  }
-
+async function proceedAfterQuantityWithDraft(
+  phone: string,
+  session: SodamaxSession,
+  qty: number,
+  total: number,
+  profileName?: string
+): Promise<void> {
   const product = session.selected_item_id
     ? await findSodamaxProductById(session.selected_item_id)
     : null
-  if (!product || !session.quantity || session.total === null) {
+
+  if (!product) {
     await sendProcessError(phone)
     return
   }
@@ -535,13 +573,25 @@ async function handleCity(phone: string, session: SodamaxSession, input: Message
   let productName = getSodamaxProductLabel(product)
   if (session.address) productName += ` (${session.address})`
 
+  const customerName = resolveCustomerName(profileName, session)
+
   const draftResult = await createDraftOrder({
     company: 'sodamax',
     customer_phone_number: phone,
-    product_name: productName,
-    quantity: session.quantity,
-    city,
-    total: session.total,
+    ...(customerName ? { customer_name: customerName } : {}),
+    city: '—',
+    address: '—',
+    total,
+    items: [
+      {
+        item_id: session.selected_item_id,
+        product_name: productName,
+        color_name: session.address,
+        quantity: qty,
+        unit_price: product.price,
+        line_total: total,
+      },
+    ],
   })
 
   if (!draftResult.success || !draftResult.orderId) {
@@ -551,24 +601,94 @@ async function handleCity(phone: string, session: SodamaxSession, input: Message
 
   await Promise.all([
     updateSession(phone, {
-      state: 'awaiting_customer_name',
-      city,
+      state: 'awaiting_delivery_address',
+      quantity: qty,
+      total,
       draft_order_id: draftResult.orderId,
+      city: null,
+      ...(customerName ? { customer_name: customerName } : {}),
     }),
-    sendWhatsAppText(phone, 'What is your full name?'),
+    sendDeliveryAddressPrompt(phone),
   ])
 }
 
-async function handleCustomerName(phone: string, session: SodamaxSession, input: MessageInput): Promise<void> {
-  const customerName = parseCustomerName(input)
-  if (!customerName) {
-    await sendWhatsAppText(phone, 'Please enter your full name (at least 2 characters).')
+async function handleDeliveryAddress(
+  phone: string,
+  session: SodamaxSession,
+  input: MessageInput,
+  profileName?: string
+): Promise<void> {
+  if (input.type !== 'text') {
+    await sendDeliveryAddressPrompt(phone)
     return
   }
 
-  const updated = { ...session, customer_name: customerName }
+  const deliveryAddress = parseAddress(input)
+  if (!deliveryAddress) {
+    await sendWhatsAppText(
+      phone,
+      'Please enter a valid delivery address (at least 5 characters).'
+    )
+    return
+  }
+
+  if (!session.draft_order_id) {
+    await sendProcessError(phone)
+    return
+  }
+
+  await proceedToConfirmWithProfileName(phone, session, deliveryAddress, profileName)
+}
+
+async function proceedToConfirmWithProfileName(
+  phone: string,
+  session: SodamaxSession,
+  deliveryAddress: string,
+  profileName?: string,
+  fallbackInput?: MessageInput
+): Promise<void> {
+  const customerName =
+    resolveCustomerName(profileName, session) ??
+    (fallbackInput ? parseCustomerName(fallbackInput) : null)
+
+  if (!customerName) {
+    await Promise.all([
+      updateSession(phone, {
+        state: 'awaiting_customer_name',
+        city: deliveryAddress,
+      }),
+      sendWhatsAppText(phone, 'What is your full name?'),
+    ])
+    return
+  }
+
+  if (!session.draft_order_id) {
+    await sendProcessError(phone)
+    return
+  }
+
+  const cityIdPatch = await buildCityIdPatch('sodamax', deliveryAddress)
+
+  const patchResult = await patchDraftOrder(session.draft_order_id, {
+    company: 'sodamax',
+    city: deliveryAddress,
+    customer_name: customerName,
+    ...cityIdPatch,
+  })
+
+  if (!patchResult.success) {
+    console.error('patchDraftOrder failed:', patchResult.error)
+    await sendProcessError(phone)
+    return
+  }
+
+  const updated = { ...session, city: deliveryAddress, customer_name: customerName }
   await Promise.all([
-    updateSession(phone, { state: 'awaiting_confirm', customer_name: customerName }),
+    updateSession(phone, {
+      state: 'awaiting_confirm',
+      city: deliveryAddress,
+      customer_name: customerName,
+    }),
     sendOrderSummary(phone, updated),
   ])
 }
@@ -586,7 +706,7 @@ async function sendOrderSummary(phone: string, session: SodamaxSession): Promise
     `Name: ${session.customer_name ?? '—'}`,
     `Product: ${productLabel}`,
     `Quantity: ${session.quantity ?? '—'}`,
-    `Region: ${session.city ?? '—'}`,
+    `Delivery address: ${session.city ?? '—'}`,
     `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
   ].join('\n')
 

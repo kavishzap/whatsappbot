@@ -1,5 +1,5 @@
 export const PROCESS_ERROR_MESSAGE =
-  'An error occurred during the process. We will contact you shortly.'
+  'An error occurred, please contact us on WhatsApp:'
 
 export const DELIVERY_CONFIRMATION_MESSAGE =
   'We will contact you within 2 days for delivery.'
@@ -10,6 +10,15 @@ export const REMINDER_MESSAGE =
 /** Hours between reminders — 3 evenly spaced within the 24h WhatsApp window. */
 export const REMINDER_INACTIVITY_HOURS = 8
 
+export const MAURITIUS_REGIONS = [
+  { id: 'region_north', name: 'North' },
+  { id: 'region_east', name: 'East' },
+  { id: 'region_south', name: 'South' },
+  { id: 'region_west', name: 'West' },
+  { id: 'region_center', name: 'Center' },
+] as const
+
+/** @deprecated District list replaced by region + city flow via whatsapp-cities */
 export const MAURITIUS_DISTRICTS = [
   { id: 'city_flacq', name: 'Flacq' },
   { id: 'city_grand_port', name: 'Grand Port' },
@@ -33,8 +42,8 @@ export const QUANTITY_OPTIONS = [
 export const WELCOME_MENU_MESSAGE =
   'Hello! 👋 Welcome to Spark Distributors.\n\nHow can we help you today?'
 
-export const SUPPORT_WHATSAPP_NUMBER = '23057833020'
-export const SUPPORT_WHATSAPP_DISPLAY = '+230 57833020'
+export const SUPPORT_WHATSAPP_NUMBER = '23057657918'
+export const SUPPORT_WHATSAPP_DISPLAY = '+230 57657918'
 export const SUPPORT_WHATSAPP_URL = `https://wa.me/${SUPPORT_WHATSAPP_NUMBER}`
 
 export const OTHER_QUERY_MESSAGE = `For other enquiries, contact us on WhatsApp:`
@@ -56,6 +65,10 @@ export function formatTotal(total: number): string {
 export function computeOrderTotal(price: number | null | undefined, quantity: number): number | null {
   if (price == null || price <= 0 || quantity <= 0) return null
   return Math.round(price * quantity * 100) / 100
+}
+
+export function getRegionNameById(id: string): string | null {
+  return MAURITIUS_REGIONS.find(r => r.id === id)?.name ?? null
 }
 
 export function getDistrictNameById(id: string): string | null {

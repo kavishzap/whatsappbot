@@ -1,6 +1,6 @@
 import { sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList } from '@/lib/whatsapp'
-import { sendCityList } from '@/lib/chatbot/regions'
-import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/chatbot/constants'
+import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
+import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/spark/constants'
 import { findSodamaxProductById, getSodamaxProductLabel } from './products'
 import { sendSodamaxProductList } from './product-list'
 import { MAIN_MENU_BUTTONS } from './constants'
@@ -88,12 +88,33 @@ export async function resumeSodamaxSessionFlow(
       await sendWhatsAppText(phone, 'Please type your custom quantity (e.g. 5, 10, 25).')
       break
 
-    case 'awaiting_city':
-      await sendCityList(phone)
+    case 'awaiting_region':
+    case 'awaiting_delivery_address':
+      await sendDeliveryAddressPrompt(phone)
       break
 
     case 'awaiting_customer_name':
-      await sendWhatsAppText(phone, 'What is your full name?')
+      if (session.customer_name) {
+        const product = session.selected_item_id
+          ? await findSodamaxProductById(session.selected_item_id)
+          : null
+        let productLabel = product ? getSodamaxProductLabel(product) : 'Selected product'
+        if (session.address) productLabel += ` (${session.address})`
+
+        const summary = [
+          '*Order summary*',
+          '',
+          `Name: ${session.customer_name ?? '—'}`,
+          `Product: ${productLabel}`,
+          `Quantity: ${session.quantity ?? '—'}`,
+          `Delivery address: ${session.city ?? '—'}`,
+          `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
+        ].join('\n')
+
+        await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])
+      } else {
+        await sendWhatsAppText(phone, 'What is your full name?')
+      }
       break
 
     case 'awaiting_confirm': {
@@ -109,7 +130,7 @@ export async function resumeSodamaxSessionFlow(
         `Name: ${session.customer_name ?? '—'}`,
         `Product: ${productLabel}`,
         `Quantity: ${session.quantity ?? '—'}`,
-        `Region: ${session.city ?? '—'}`,
+        `Delivery address: ${session.city ?? '—'}`,
         `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
       ].join('\n')
 

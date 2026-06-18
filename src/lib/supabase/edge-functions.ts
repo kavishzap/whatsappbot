@@ -69,7 +69,10 @@ export async function invokeEdgeFunction<T = unknown>(
   const json = (await res.json()) as EdgeResponse<T>
 
   if (!res.ok || !json.success) {
-    throw new Error(formatEdgeError(json.error) || `Edge function ${name} failed (${res.status})`)
+    throw new Error(
+      formatEdgeError(json.error ?? json.message ?? json) ||
+        `Edge function ${name} failed (${res.status})`
+    )
   }
 
   return json

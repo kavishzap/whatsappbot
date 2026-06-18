@@ -1,5 +1,5 @@
 import type { MessageInput, IncomingWhatsAppMessage } from './types'
-import { getDistrictNameById } from './constants'
+import { getRegionNameById } from './constants'
 
 function normalize(text: string): string {
   return text
@@ -75,6 +75,21 @@ export function isSeeMoreAnswer(input: MessageInput): boolean {
   if (input.type === 'button') return input.value === 'order_see_more'
   const n = normalize(input.value)
   return matchesAny(n, SEE_MORE_PATTERNS)
+}
+
+export function isAddMoreProductAnswer(input: MessageInput): boolean {
+  return (input.type === 'button' || input.type === 'list') && input.value === 'add_more_product'
+}
+
+export function isBackToSummaryAnswer(input: MessageInput): boolean {
+  return (
+    (input.type === 'button' || input.type === 'list') &&
+    input.value === 'back_to_summary'
+  )
+}
+
+export function isRemoveLastItemAnswer(input: MessageInput): boolean {
+  return input.type === 'button' && input.value === 'cart_remove_last'
 }
 
 export function parseMenuSelection(input: MessageInput): string | null {
@@ -174,12 +189,35 @@ export function parseQuantity(input: MessageInput): number | null {
   return null
 }
 
-export function parseCitySelection(input: MessageInput): string | null {
-  if (input.type === 'list' && input.value.startsWith('city_')) {
-    return getDistrictNameById(input.value)
+export function parseRegionSelection(input: MessageInput): string | null {
+  if (input.type === 'list' && input.value.startsWith('region_')) {
+    if (input.value === 'region_back') return null
+    return getRegionNameById(input.value)
   }
 
   return null
+}
+
+export function isBackToRegionAnswer(input: MessageInput): boolean {
+  return (input.type === 'button' || input.type === 'list') && input.value === 'region_back'
+}
+
+export function parseCityListPage(input: MessageInput): number | null {
+  if (input.type !== 'button' || !input.value.startsWith('city_pg_')) return null
+  const n = parseInt(input.value.replace('city_pg_', ''), 10)
+  return Number.isNaN(n) || n < 0 ? null : n
+}
+
+export function parseCityId(input: MessageInput): string | null {
+  if (input.type === 'list' && input.value.startsWith('city_')) {
+    return input.value.replace('city_', '')
+  }
+
+  return null
+}
+
+export function parseCitySelection(input: MessageInput): string | null {
+  return parseCityId(input)
 }
 
 export function parseCity(input: MessageInput): string | null {
@@ -193,11 +231,16 @@ export function parseAddress(input: MessageInput): string | null {
   return address
 }
 
-export function parseCustomerName(input: MessageInput): string | null {
-  if (input.type !== 'text') return null
-  const name = input.value.trim()
+export function parseProfileName(raw: string | undefined | null): string | null {
+  if (!raw) return null
+  const name = raw.trim().replace(/^~+/, '').trim()
   if (name.length < 2) return null
   return name
+}
+
+export function parseCustomerName(input: MessageInput): string | null {
+  if (input.type !== 'text') return null
+  return parseProfileName(input.value)
 }
 
 export function parseTotal(input: MessageInput): number | null {

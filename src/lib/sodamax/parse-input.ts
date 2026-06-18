@@ -1,5 +1,9 @@
 import type { MessageInput } from './types'
-import { getDistrictNameById } from '@/lib/chatbot/constants'
+
+export {
+  parseRegionSelection,
+  parseAddress,
+} from '@/lib/spark/parse-input'
 
 function normalize(text: string): string {
   return text
@@ -88,13 +92,6 @@ export function parseQuantity(input: MessageInput): number | null {
   if (!digitMatch) return null
   const qty = parseInt(digitMatch[0], 10)
   return qty >= 1 && qty <= 999 ? qty : null
-}
-
-export function parseCitySelection(input: MessageInput): string | null {
-  if (input.type === 'list' && input.value.startsWith('city_')) {
-    return getDistrictNameById(input.value)
-  }
-  return null
 }
 
 export function parseCustomerName(input: MessageInput): string | null {

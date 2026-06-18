@@ -13,17 +13,17 @@ export default function OrderingPlatformTestPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="panel flex-1 min-h-[520px] overflow-hidden flex flex-col">
+      <div className="panel flex-1 min-h-0 overflow-hidden flex flex-col">
         {iframeSrc ? (
           <iframe
             src={iframeSrc}
             title="Ordering Platform Test"
-            className="flex-1 w-full min-h-[480px] border-0 bg-white"
+            className="flex-1 w-full min-h-0 border-0 bg-white"
             loading="lazy"
             allow="clipboard-read; clipboard-write"
           />
         ) : (
-          <div className="flex-1 min-h-[480px] flex items-center justify-center text-sm text-ink-400">
+          <div className="flex-1 min-h-[200px] flex items-center justify-center text-sm text-ink-400">
             Loading platform…
           </div>
         )}

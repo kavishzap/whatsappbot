@@ -14,13 +14,14 @@ export const OTHER_QUERY_CTA_LABEL = 'Message us'
 const supportNumber =
   process.env.SODAMAX_SUPPORT_WHATSAPP_NUMBER?.trim() ||
   process.env.SUPPORT_WHATSAPP_NUMBER?.trim() ||
-  '23057833020'
+  '23058875050'
 
 export const SUPPORT_WHATSAPP_NUMBER = supportNumber
+export const SUPPORT_WHATSAPP_DISPLAY = '+230 58875050'
 export const SUPPORT_WHATSAPP_URL = `https://wa.me/${supportNumber}`
 
 export const PROCESS_ERROR_MESSAGE =
-  'An error occurred during the process. We will contact you shortly.'
+  'An error occurred, please contact us on WhatsApp:'
 
 export const DELIVERY_CONFIRMATION_MESSAGE =
   'We will contact you within 2 days for delivery.'
@@ -30,4 +31,4 @@ export {
   QUANTITY_OPTIONS,
   formatTotal,
   computeOrderTotal,
-} from '@/lib/chatbot/constants'
+} from '@/lib/spark/constants'

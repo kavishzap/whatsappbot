@@ -4,27 +4,6 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { NAV_SECTIONS, findSectionForPath, type NavItem } from './nav-config'
 
-const ACCENT_STYLES = {
-  spark: {
-    dot: 'bg-brand-400',
-    ring: 'ring-brand-400/30',
-    active: 'bg-brand-500/15 text-white ring-1 ring-brand-400/25',
-    icon: 'text-brand-300',
-  },
-  soda: {
-    dot: 'bg-soda-400',
-    ring: 'ring-soda-400/30',
-    active: 'bg-soda-500/15 text-white ring-1 ring-soda-400/25',
-    icon: 'text-soda-300',
-  },
-  admin: {
-    dot: 'bg-violet-400',
-    ring: 'ring-violet-400/30',
-    active: 'bg-violet-500/15 text-white ring-1 ring-violet-400/25',
-    icon: 'text-violet-300',
-  },
-} as const
-
 function SidebarTooltip({
   label,
   show,
@@ -51,16 +30,13 @@ function NavLink({
   item,
   active,
   collapsed,
-  accent,
   onNavigate,
 }: {
   item: NavItem
   active: boolean
   collapsed: boolean
-  accent: keyof typeof ACCENT_STYLES
   onNavigate?: () => void
 }) {
-  const styles = ACCENT_STYLES[accent]
   const Icon = item.icon
 
   return (
@@ -70,19 +46,15 @@ function NavLink({
         onClick={onNavigate}
         aria-label={collapsed ? item.label : undefined}
         aria-current={active ? 'page' : undefined}
-        className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all ${
-          collapsed ? 'w-10 h-10 mx-auto justify-center' : 'px-3 py-2 ml-1'
+        className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-colors ${
+          collapsed ? 'w-9 h-9 mx-auto justify-center' : 'px-3 py-2 min-h-9'
         } ${
           active
-            ? collapsed
-              ? `bg-brand-500 text-white shadow-glow`
-              : styles.active
-            : collapsed
-              ? 'text-slate-400 hover:bg-white/5 hover:text-white'
-              : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+            ? 'bg-white/10 text-white'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
         }`}
       >
-        <Icon className={`w-[17px] h-[17px] shrink-0 ${active && !collapsed ? styles.icon : ''}`} />
+        <Icon className="w-[18px] h-[18px] shrink-0" />
         {!collapsed && <span className="truncate">{item.label}</span>}
       </Link>
     </SidebarTooltip>
@@ -92,7 +64,6 @@ function NavLink({
 function AccordionSection({
   id,
   label,
-  accent,
   items,
   pathname,
   collapsed,
@@ -102,7 +73,6 @@ function AccordionSection({
 }: {
   id: string
   label: string
-  accent: keyof typeof ACCENT_STYLES
   items: NavItem[]
   pathname: string
   collapsed: boolean
@@ -110,19 +80,17 @@ function AccordionSection({
   onToggle: () => void
   onNavigate?: () => void
 }) {
-  const styles = ACCENT_STYLES[accent]
   const hasActive = items.some(item => item.href === pathname)
 
   if (collapsed) {
     return (
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {items.map(item => (
           <NavLink
             key={item.href}
             item={item}
             active={pathname === item.href}
             collapsed
-            accent={accent}
             onNavigate={onNavigate}
           />
         ))}
@@ -131,20 +99,19 @@ function AccordionSection({
   }
 
   return (
-    <div className="rounded-xl overflow-hidden">
+    <div>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`nav-section-${id}`}
-        className={`flex w-full items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-white/5 ${
-          hasActive ? 'text-slate-100' : 'text-slate-400'
+        className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors hover:bg-white/5 ${
+          hasActive ? 'text-slate-200' : 'text-slate-500'
         }`}
       >
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${styles.dot}`} />
-        <span className="flex-1 text-xs font-bold uppercase tracking-[0.12em]">{label}</span>
+        <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.14em]">{label}</span>
         <svg
-          className={`w-4 h-4 shrink-0 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -160,14 +127,13 @@ function AccordionSection({
         }`}
       >
         <div className="overflow-hidden">
-          <div className="space-y-0.5 pb-1 pt-0.5 pl-2 border-l border-white/5 ml-4">
+          <div className="space-y-0.5 py-1">
             {items.map(item => (
               <NavLink
                 key={item.href}
                 item={item}
                 active={pathname === item.href}
                 collapsed={false}
-                accent={accent}
                 onNavigate={onNavigate}
               />
             ))}
@@ -204,13 +170,12 @@ export function SidebarNav({
   }
 
   return (
-    <nav className={`flex-1 px-2 py-4 space-y-2 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
+    <nav className={`flex-1 px-2 py-3 space-y-3 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
       {NAV_SECTIONS.map(section => (
         <AccordionSection
           key={section.id}
           id={section.id}
           label={section.label}
-          accent={section.accent}
           items={section.items}
           pathname={pathname}
           collapsed={collapsed}

@@ -58,7 +58,7 @@ function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-auth-canvas flex items-center justify-center p-4 sm:p-8">
+    <main className="min-h-[100dvh] bg-auth-canvas flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-6 lg:gap-10 items-center">
         <section className="hidden lg:flex flex-col justify-center px-4">
           <div className="inline-flex items-center gap-2 badge-success w-fit mb-6">

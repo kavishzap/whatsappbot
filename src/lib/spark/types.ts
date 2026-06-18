@@ -5,11 +5,20 @@ export type ChatState =
   | 'awaiting_menu_selection'
   | 'awaiting_order_decision'
   | 'awaiting_product_selection'
+  | 'awaiting_add_more_product'
   | 'awaiting_quantity'
   | 'awaiting_quantity_custom'
-  | 'awaiting_city'
+  | 'awaiting_region'
+  | 'awaiting_delivery_address'
   | 'awaiting_customer_name'
   | 'awaiting_confirm'
+
+export interface SessionCartItem {
+  item_id: string
+  color_id?: string | null
+  quantity: number
+  item?: Pick<BotItem, 'id' | 'product_name' | 'price' | 'company'> | null
+}
 
 export interface BotItem {
   id: string
@@ -30,11 +39,13 @@ export interface WhatsAppSession {
   state: ChatState
   selected_item_id: string | null
   quantity: number | null
+  region: string | null
   city: string | null
   address: string | null
   customer_name: string | null
   total: number | null
   draft_order_id: string | null
+  cart_items: SessionCartItem[]
   reminder_count: number
   last_inbound_at: string | null
   last_reminder_at: string | null
@@ -46,10 +57,25 @@ export type MessageInput =
   | { type: 'button'; value: string }
   | { type: 'list'; value: string }
 
+/** Click-to-WhatsApp ad payload on the customer's first message. */
+export interface WhatsAppReferral {
+  source_url?: string
+  source_id?: string
+  source_type?: string
+  headline?: string
+  body?: string
+  media_type?: string
+  video_url?: string
+  thumbnail_url?: string
+}
+
 export interface IncomingWhatsAppMessage {
   from: string
+  /** WhatsApp display name from webhook `contacts[].profile.name`. */
+  profile_name?: string
   type: string
   text?: { body?: string }
+  referral?: WhatsAppReferral
   interactive?: {
     type: string
     button_reply?: { id: string; title: string }
@@ -59,14 +85,24 @@ export interface IncomingWhatsAppMessage {
 
 import { REMINDER_INACTIVITY_HOURS } from './constants'
 
-/** True once the customer has selected a region (no session reminders after this). */
+/** True once a draft order exists (checkout past quantity — no session reminders after this). */
+export function isCheckoutStarted(session: WhatsAppSession): boolean {
+  return Boolean(session.draft_order_id)
+}
+
+/** @deprecated Region step removed — alias for isCheckoutStarted. */
 export function isRegionStepComplete(session: WhatsAppSession): boolean {
-  return session.city !== null && session.city.trim().length > 0
+  return isCheckoutStarted(session)
+}
+
+/** Spark add-more loop: customer details and draft already captured. */
+export function isAddMoreCheckoutReady(session: WhatsAppSession): boolean {
+  return Boolean(session.draft_order_id && session.customer_name)
 }
 
 export function isReminderEligible(session: WhatsAppSession): boolean {
   if (session.state === 'idle') return false
-  if (isRegionStepComplete(session)) return false
+  if (isCheckoutStarted(session)) return false
   if ((session.reminder_count ?? 0) >= 3) return false
   if (!session.last_inbound_at) return false
 

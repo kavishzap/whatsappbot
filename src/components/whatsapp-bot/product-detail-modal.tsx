@@ -107,9 +107,9 @@ export function ProductDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-detail-title"
-        className="relative bg-white rounded-2xl shadow-card border border-ink-200/80 w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in"
+        className="relative bg-white rounded-2xl shadow-card border border-ink-200/80 w-full max-w-lg max-h-[min(90dvh,900px)] flex flex-col animate-fade-in mx-auto"
       >
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-ink-100 shrink-0">
+        <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-4 border-b border-ink-100 shrink-0">
           <h2 id="product-detail-title" className="text-lg font-bold text-ink-900 tracking-tight">
             {row.isNew ? 'Add product' : 'Edit product'}
           </h2>
@@ -117,7 +117,7 @@ export function ProductDetailModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="p-1.5 rounded-lg text-ink-400 hover:text-ink-700 hover:bg-ink-100 disabled:opacity-50 transition-colors shrink-0"
+            className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-ink-700 hover:bg-ink-100 disabled:opacity-50 transition-colors shrink-0"
             aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,8 +126,8 @@ export function ProductDetailModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
-          <div className="flex gap-4 items-start">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 min-h-0">
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="shrink-0">
               <input
                 ref={fileInputRef}
@@ -193,14 +193,17 @@ export function ProductDetailModal({
             </div>
           </div>
 
-          <DetailField label="Ads link">
+          <DetailField label="Facebook ad link">
             <input
               type="url"
               value={row.adLink}
               onChange={e => onUpdate(row.id, { adLink: e.target.value })}
-              placeholder="https://…"
-              className={inputClass}
+              placeholder="https://fb.me/6L2QqVYgY"
+              className={`${inputClass} break-all`}
             />
+            <p className="text-[10px] text-ink-400 mt-1">
+              Paste referral.source_url from the WhatsApp webhook when someone messages from your ad.
+            </p>
           </DetailField>
 
           <DetailField label="Description">
@@ -223,7 +226,7 @@ export function ProductDetailModal({
                 <button
                   type="button"
                   onClick={addColor}
-                  className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                  className="inline-flex items-center min-h-[44px] px-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
                 >
                   + Add color
                 </button>
@@ -236,13 +239,13 @@ export function ProductDetailModal({
                   </p>
                 ) : (
                   row.colors.map((color, index) => (
-                    <div key={color.id} className="flex items-center gap-2">
+                    <div key={color.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                       <span className="text-xs text-gray-400 w-5 text-center shrink-0">{index + 1}</span>
                       <input
                         type="color"
                         value={color.colorHex || DEFAULT_HEX}
                         onChange={e => updateColor(color.id, { colorHex: e.target.value })}
-                        className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer shrink-0 p-0.5"
+                        className="w-11 h-11 rounded-lg border border-gray-200 cursor-pointer shrink-0 p-0.5"
                         title="Pick color"
                       />
                       <input
@@ -255,7 +258,7 @@ export function ProductDetailModal({
                       <button
                         type="button"
                         onClick={() => removeColor(color.id)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"
+                        className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 shrink-0"
                         title="Remove color"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,7 +273,7 @@ export function ProductDetailModal({
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-ink-100 shrink-0 space-y-2">
+        <div className="px-4 sm:px-6 py-4 border-t border-ink-100 shrink-0 space-y-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {!row.isNew && onDelete && (
             <button
               type="button"
@@ -281,7 +284,7 @@ export function ProductDetailModal({
               Delete product
             </button>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
             <button type="button" onClick={onClose} disabled={saving} className="flex-1 btn-secondary">
               Cancel
             </button>

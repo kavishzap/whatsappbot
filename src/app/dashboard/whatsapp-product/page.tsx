@@ -178,7 +178,7 @@ export default function WhatsAppProductPage() {
 
     const payload = {
       company: 'sodamax' as const,
-      ad_link: modalRow.adLink.trim(),
+      ad_link: modalRow.adLink.trim() || null,
       product_name: modalRow.productName.trim(),
       price: parseFloat(modalRow.price),
       image_base64: modalRow.imageBase64,
@@ -317,7 +317,7 @@ export default function WhatsAppProductPage() {
             }}
             disabled={deletingId === row.id}
             title="Delete product"
-            className="p-1 rounded-md text-ink-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40"
+            className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40"
           >
             {deletingId === row.id ? <Spinner className="w-3.5 h-3.5" /> : <TrashIcon className="w-3.5 h-3.5" />}
           </button>
@@ -354,7 +354,7 @@ export default function WhatsAppProductPage() {
         onDelete={requestDeleteFromModal}
       />
 
-      <div className="grid grid-cols-3 gap-2.5 shrink-0">
+      <div className="stat-grid shrink-0">
         <StatCard label="Total products" value={loading ? '—' : String(stats.total)} />
         <StatCard
           label="With photos"
@@ -379,8 +379,40 @@ export default function WhatsAppProductPage() {
         searchPlaceholder="Search product, link, description, color…"
         searchFilter={matchesProductSearch}
         onRowClick={openEditModal}
+        mobileCardRender={row => (
+          <button
+            type="button"
+            onClick={() => openEditModal(row)}
+            className="w-full text-left px-3 py-3.5 table-row-hover"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              {row.imagePreview ? (
+                <img
+                  src={row.imagePreview}
+                  alt={row.productName || 'Product'}
+                  className="w-12 h-12 rounded-lg object-cover border border-ink-200 shrink-0"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-lg border border-dashed border-ink-200 bg-ink-50 shrink-0 flex items-center justify-center text-[10px] text-ink-400">
+                  {row.hasImage ? 'IMG' : '—'}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-ink-900 truncate">{row.productName || 'Untitled product'}</p>
+                <p className="text-sm text-ink-600 tabular-nums mt-0.5">{formatPrice(row.price)}</p>
+                {row.colors.length > 0 && (
+                  <div className="mt-1">
+                    <ColorSwatches colors={row.colors} />
+                  </div>
+                )}
+              </div>
+              <ChevronIcon className="w-4 h-4 text-ink-300 shrink-0" />
+            </div>
+          </button>
+        )}
         toolbar={
-          <button type="button" onClick={openAddModal} disabled={loading} className="btn-primary">
+          <button type="button" onClick={openAddModal} disabled={loading} className="btn-primary w-full sm:w-auto">
             <PlusIcon className="w-3.5 h-3.5" />
             Add product
           </button>
@@ -421,6 +453,14 @@ function TrashIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
     </svg>
   )
 }

@@ -45,10 +45,10 @@ export function ConfirmDialog({
         disabled={loading}
         className="absolute inset-0 bg-ink-950/50 backdrop-blur-sm"
       />
-      <div role="dialog" aria-modal="true" className="relative panel shadow-panel w-full max-w-md p-6 animate-fade-in">
+      <div role="dialog" aria-modal="true" className="relative panel shadow-panel w-full max-w-md p-5 sm:p-6 animate-fade-in mx-4">
         <h2 className="text-lg font-bold text-ink-900 tracking-tight">{title}</h2>
         <p className="text-sm text-ink-500 mt-2 mb-6 leading-relaxed">{description}</p>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3">
           <button type="button" onClick={onCancel} disabled={loading} className="btn-secondary flex-1">
             {cancelLabel}
           </button>

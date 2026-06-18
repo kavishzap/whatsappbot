@@ -8,6 +8,7 @@ const DEFAULT_SESSION = {
   state: 'idle',
   selected_item_id: null,
   quantity: null,
+  region: null,
   city: null,
   address: null,
   customer_name: null,
@@ -35,6 +36,75 @@ function formatDbError(error: unknown): string {
   return String(error)
 }
 
+const CART_STATES = new Set([
+  'awaiting_confirm',
+  'awaiting_add_more_product',
+])
+
+function sessionNeedsCart(
+  state: string | null | undefined,
+  includeCartParam: string | null
+): boolean {
+  if (includeCartParam === '1') return true
+  if (includeCartParam === '0') return false
+  return CART_STATES.has(state ?? 'idle')
+}
+
+async function loadCartItems(
+  supabase: ReturnType<typeof getServiceClient>,
+  phone: string,
+  company: string
+) {
+  const { data: cartItems, error: cartError } = await supabase
+    .from('whatsapp_session_cart_items')
+    .select(`
+      *,
+      item:whatsapp_bot_items (
+        id,
+        product_name,
+        price,
+        price_amount,
+        company
+      ),
+      color:whatsapp_bot_item_colors (
+        id,
+        color_name,
+        color_hex
+      )
+    `)
+    .eq('phone', phone)
+    .eq('company', company)
+    .order('created_at', { ascending: true })
+
+  if (cartError) throw cartError
+  return cartItems ?? []
+}
+
+function cleanSessionPayload(body: Record<string, unknown>) {
+  const allowed = [
+    'state',
+    'selected_item_id',
+    'quantity',
+    'region',
+    'city',
+    'address',
+    'customer_name',
+    'total',
+    'draft_order_id',
+    'reminder_count',
+    'last_inbound_at',
+    'last_reminder_at',
+  ]
+
+  const payload: Record<string, unknown> = {}
+
+  for (const key of allowed) {
+    if (key in body) payload[key] = body[key]
+  }
+
+  return payload
+}
+
 Deno.serve(async (req) => {
   const options = handleOptions(req)
   if (options) return options
@@ -49,14 +119,16 @@ Deno.serve(async (req) => {
 
     if (req.method === 'GET' && list === 'reminder_candidates') {
       const gapMs = REMINDER_GAP_HOURS * 60 * 60 * 1000
-      const windowStart = new Date(Date.now() - REMINDER_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
+      const windowStart = new Date(
+        Date.now() - REMINDER_WINDOW_HOURS * 60 * 60 * 1000
+      ).toISOString()
       const inactiveSince = new Date(Date.now() - gapMs).toISOString()
 
       let query = supabase
         .from('whatsapp_sessions')
         .select('*')
         .neq('state', 'idle')
-        .is('city', null)
+        .is('region', null)
         .lt('reminder_count', 3)
         .not('last_inbound_at', 'is', null)
         .gt('last_inbound_at', windowStart)
@@ -68,7 +140,7 @@ Deno.serve(async (req) => {
       const { data, error } = await query
       if (error) throw error
 
-      const candidates = (data ?? []).filter(row => {
+      const candidates = (data ?? []).filter((row) => {
         const count = row.reminder_count ?? 0
         if (count >= 3) return false
 
@@ -86,23 +158,73 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Missing phone' }, 400)
       }
 
-      const { data, error } = await supabase
-        .from('whatsapp_sessions')
-        .select('*')
-        .eq('phone', phone)
-        .eq('company', company)
-        .maybeSingle()
+      const touch = url.searchParams.get('touch') === '1'
+      const includeCartParam = url.searchParams.get('include_cart')
+      const now = new Date().toISOString()
 
-      if (error) throw error
+      let session = null as Record<string, unknown> | null
 
-      if (!data) {
+      if (touch) {
+        const { data, error: touchError } = await supabase
+          .from('whatsapp_sessions')
+          .upsert(
+            {
+              phone,
+              company,
+              last_inbound_at: now,
+              reminder_count: 0,
+              updated_at: now,
+            },
+            { onConflict: 'phone,company' }
+          )
+          .select()
+          .single()
+
+        if (touchError) throw touchError
+        session = data
+      } else {
+        const { data, error: sessionError } = await supabase
+          .from('whatsapp_sessions')
+          .select('*')
+          .eq('phone', phone)
+          .eq('company', company)
+          .maybeSingle()
+
+        if (sessionError) throw sessionError
+        session = data
+      }
+
+      const needsCart =
+        company === 'spark' &&
+        sessionNeedsCart(
+          typeof session?.state === 'string' ? session.state : null,
+          includeCartParam
+        )
+
+      const cartItems = needsCart
+        ? await loadCartItems(supabase, phone, company)
+        : []
+
+      if (!session) {
         return jsonResponse({
           success: true,
-          data: { phone, company, ...DEFAULT_SESSION, updated_at: new Date().toISOString() },
+          data: {
+            phone,
+            company,
+            ...DEFAULT_SESSION,
+            updated_at: now,
+            cart_items: cartItems,
+          },
         })
       }
 
-      return jsonResponse({ success: true, data })
+      return jsonResponse({
+        success: true,
+        data: {
+          ...session,
+          cart_items: cartItems,
+        },
+      })
     }
 
     if (req.method === 'PUT') {
@@ -110,33 +232,94 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Missing phone' }, 400)
       }
 
-      const body = await req.json()
+      const body = await req.json() as Record<string, unknown>
+
       const sessionCompany = parseCompany(
-        typeof body.company === 'string' ? body.company : url.searchParams.get('company')
+        typeof body.company === 'string'
+          ? body.company
+          : url.searchParams.get('company')
       )
-      const { company: _company, ...rest } = body as Record<string, unknown>
-      const payload = {
-        ...rest,
+
+      const sessionPayload = {
+        ...cleanSessionPayload(body),
         phone,
         company: sessionCompany,
         updated_at: new Date().toISOString(),
       }
 
-      const { data, error } = await supabase
+      const { data: session, error: sessionError } = await supabase
         .from('whatsapp_sessions')
-        .upsert(payload, { onConflict: 'phone,company' })
+        .upsert(sessionPayload, { onConflict: 'phone,company' })
         .select()
         .single()
 
-      if (error) throw error
+      if (sessionError) throw sessionError
 
-      return jsonResponse({ success: true, data })
+      const wroteCart = Array.isArray(body.cart_items)
+
+      if (wroteCart) {
+        const { error: deleteCartError } = await supabase
+          .from('whatsapp_session_cart_items')
+          .delete()
+          .eq('phone', phone)
+          .eq('company', sessionCompany)
+
+        if (deleteCartError) throw deleteCartError
+
+        const cartRows = body.cart_items
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null
+
+            const row = item as Record<string, unknown>
+
+            return {
+              phone,
+              company: sessionCompany,
+              item_id: row.item_id,
+              color_id: row.color_id ?? null,
+              quantity: row.quantity ?? 1,
+            }
+          })
+          .filter(Boolean)
+
+        if (cartRows.length > 0) {
+          const { error: insertCartError } = await supabase
+            .from('whatsapp_session_cart_items')
+            .insert(cartRows)
+
+          if (insertCartError) throw insertCartError
+        }
+      }
+
+      const reloadCart =
+        wroteCart || url.searchParams.get('include_cart') === '1'
+
+      const cartItems =
+        reloadCart && sessionCompany === 'spark'
+          ? await loadCartItems(supabase, phone, sessionCompany)
+          : null
+
+      return jsonResponse({
+        success: true,
+        data: {
+          ...session,
+          ...(cartItems !== null ? { cart_items: cartItems } : {}),
+        },
+      })
     }
 
     if (req.method === 'DELETE') {
       if (!phone) {
         return jsonResponse({ success: false, error: 'Missing phone' }, 400)
       }
+
+      const { error: deleteCartError } = await supabase
+        .from('whatsapp_session_cart_items')
+        .delete()
+        .eq('phone', phone)
+        .eq('company', company)
+
+      if (deleteCartError) throw deleteCartError
 
       const { data, error } = await supabase
         .from('whatsapp_sessions')
@@ -154,12 +337,19 @@ Deno.serve(async (req) => {
 
       if (error) throw error
 
-      return jsonResponse({ success: true, data })
+      return jsonResponse({
+        success: true,
+        data: {
+          ...data,
+          cart_items: [],
+        },
+      })
     }
 
     return jsonResponse({ success: false, error: 'Method not allowed' }, 405)
   } catch (error) {
     console.error('whatsapp-bot-sessions error:', error)
+
     return jsonResponse(
       {
         success: false,

@@ -2,88 +2,13 @@
 
 import { useEffect } from 'react'
 import {
+  displayOrderCustomerName,
+  formatOrderDate,
+  formatOrderItemLabel,
   formatOrderTotal,
   type OrderStatus,
   type WhatsAppBotOrder,
 } from '@/lib/whatsapp-bot-orders'
-
-function formatReceiptDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function ReceiptTearEdge({ position }: { position: 'top' | 'bottom' }) {
-  const height = 18
-  const toothWidth = 12
-  const teeth = 28
-  const width = teeth * toothWidth
-
-  const path =
-    position === 'top'
-      ? `M0,${height} ${Array.from({ length: teeth }, (_, i) => {
-          const x = i * toothWidth
-          return `L${x + toothWidth / 2},0 L${x + toothWidth},${height}`
-        }).join(' ')} L${width},${height} Z`
-      : `M0,0 ${Array.from({ length: teeth }, (_, i) => {
-          const x = i * toothWidth
-          return `L${x + toothWidth / 2},${height} L${x + toothWidth},0`
-        }).join(' ')} L${width},0 Z`
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      className="block w-full h-[18px] shrink-0"
-      aria-hidden
-    >
-      <path d={path} fill="#ffffff" />
-    </svg>
-  )
-}
-
-function DeliveryIllustration() {
-  return (
-    <svg viewBox="0 0 200 120" className="w-40 h-24 mx-auto" aria-hidden>
-      <ellipse cx="100" cy="108" rx="70" ry="8" fill="#e5e7eb" />
-      <path d="M55 85 L145 85 L150 70 L130 55 L70 55 L55 70 Z" fill="#14b8a6" />
-      <rect x="72" y="58" width="56" height="28" rx="4" fill="#0d9488" />
-      <circle cx="75" cy="88" r="14" fill="#374151" />
-      <circle cx="75" cy="88" r="7" fill="#9ca3af" />
-      <circle cx="130" cy="88" r="14" fill="#374151" />
-      <circle cx="130" cy="88" r="7" fill="#9ca3af" />
-      <rect x="138" y="62" width="22" height="18" rx="3" fill="#d97706" />
-      <circle cx="155" cy="52" r="16" fill="#fdba74" />
-      <path d="M148 48 L162 48 L160 58 L150 58 Z" fill="#ea580c" />
-      <rect x="152" y="44" width="14" height="6" rx="2" fill="#c2410c" />
-    </svg>
-  )
-}
-
-function ReceiptBarcode({ value }: { value: string }) {
-  const bars = value.split('').flatMap((char, i) => {
-    const code = char.charCodeAt(0) + i
-    const wide = code % 3 === 0
-    return [
-      { w: wide ? 3 : 1, gap: 1 },
-      { w: code % 2 === 0 ? 2 : 1, gap: 2 },
-    ]
-  })
-
-  return (
-    <div className="flex items-end justify-center gap-px h-14 px-6" aria-hidden>
-      {bars.map((bar, i) => (
-        <div
-          key={i}
-          className="bg-gray-900"
-          style={{ width: `${bar.w}px`, height: i % 5 === 0 ? '100%' : '85%', marginRight: `${bar.gap}px` }}
-        />
-      ))}
-    </div>
-  )
-}
 
 interface OrderReceiptModalProps {
   order: WhatsAppBotOrder | null
@@ -91,14 +16,15 @@ interface OrderReceiptModalProps {
   onClose: () => void
   onApprove: (order: WhatsAppBotOrder) => void
   onReject: (order: WhatsAppBotOrder) => void
+  onMarkPending?: (order: WhatsAppBotOrder) => void
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const styles: Record<OrderStatus, string> = {
-    draft: 'bg-slate-100 text-slate-600 ring-slate-200',
-    pending: 'bg-amber-50 text-amber-700 ring-amber-100',
-    approved: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-    rejected: 'bg-red-50 text-red-700 ring-red-100',
+    draft: 'badge-neutral',
+    pending: 'badge-warning',
+    approved: 'badge-success',
+    rejected: 'badge-danger',
   }
 
   const labels: Record<OrderStatus, string> = {
@@ -108,11 +34,34 @@ function StatusBadge({ status }: { status: OrderStatus }) {
     rejected: 'Rejected',
   }
 
+  return <span className={styles[status]}>{labels[status]}</span>
+}
+
+function BrandLabel({ company }: { company: WhatsAppBotOrder['company'] }) {
+  if (company === 'sodamax') {
+    return <span className="text-orange-600 font-semibold">SodaMax</span>
+  }
+
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide ring-1 ${styles[status]}`}>
-      {labels[status]}
-    </span>
+    <>
+      <span className="text-brand-600 font-semibold">Spark</span>{' '}
+      <span className="text-rose-500 font-semibold">Distributors</span>
+    </>
   )
+}
+
+function modalTitle(status: OrderStatus): string {
+  if (status === 'approved') return 'Order approved'
+  if (status === 'rejected') return 'Order rejected'
+  if (status === 'draft') return 'Draft order'
+  return 'Order details'
+}
+
+function formatAddress(order: WhatsAppBotOrder): string {
+  const city = order.city?.trim() || '—'
+  const address = order.address?.trim()
+  if (!address || address === '—') return city
+  return `${city} · ${address}`
 }
 
 export function OrderReceiptModal({
@@ -121,11 +70,12 @@ export function OrderReceiptModal({
   onClose,
   onApprove,
   onReject,
+  onMarkPending,
 }: OrderReceiptModalProps) {
   useEffect(() => {
     if (!order) return
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !updating) onClose()
     }
     document.addEventListener('keydown', handleEscape)
     document.body.style.overflow = 'hidden'
@@ -133,136 +83,188 @@ export function OrderReceiptModal({
       document.removeEventListener('keydown', handleEscape)
       document.body.style.overflow = ''
     }
-  }, [order, onClose])
+  }, [order, updating, onClose])
 
   if (!order) return null
+
+  const items = order.items ?? []
+  const showDraftActions = order.status === 'draft'
+  const showPendingActions = order.status === 'pending'
+  const showRejectedActions = order.status === 'rejected'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close receipt"
+        aria-label="Close order details"
         onClick={onClose}
-        className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+        disabled={updating}
+        className="absolute inset-0 bg-ink-950/50 backdrop-blur-sm disabled:cursor-not-allowed"
       />
 
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="receipt-title"
-        className="relative w-full max-w-sm animate-fade-in"
+        aria-labelledby="order-modal-title"
+        className="relative bg-white rounded-2xl shadow-card border border-ink-200/80 w-full max-w-lg max-h-[min(90dvh,900px)] flex flex-col animate-fade-in mx-auto"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-white shadow-md border border-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors"
-          aria-label="Close"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <div className="drop-shadow-2xl">
-          <ReceiptTearEdge position="top" />
-
-          <div className="bg-white px-6 pb-4">
-            <div className="flex items-start justify-between gap-3 text-xs text-gray-400 mb-4">
-              <span className="truncate max-w-[55%]" title={order.order_ref}>
-                Order: {order.order_ref}
-              </span>
-              <span className="shrink-0">{formatReceiptDate(order.created_at)}</span>
-            </div>
-
-            <DeliveryIllustration />
-
-            <div className="text-center mb-1">
-              <p className="text-lg font-bold tracking-tight">
-                <span className="text-emerald-600">Spark</span>{' '}
-                <span className="text-rose-500">Distributors</span>
-              </p>
-            </div>
-
-            <h2 id="receipt-title" className="text-center text-xl font-bold text-gray-800 mb-3">
-              {order.status === 'approved'
-                ? 'Order approved!'
-                : order.status === 'rejected'
-                  ? 'Order rejected'
-                  : 'Order received!'}
-            </h2>
-
-            <div className="flex justify-center mb-5">
-              <StatusBadge status={order.status} />
-            </div>
-
-            <div className="rounded-xl bg-gray-50/80 border border-gray-100 px-4 py-3 mb-6 space-y-1.5 text-sm">
-              <p className="text-gray-900 font-medium">{order.customer_name}</p>
-              <p className="text-gray-500 tabular-nums">{order.customer_phone_number}</p>
-              <p className="text-gray-600">
-                {order.city} — {order.address}
-              </p>
-            </div>
-
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Payment summary
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-ink-100 shrink-0">
+          <div className="min-w-0">
+            <p className="text-xs text-ink-400 mb-1">
+              <BrandLabel company={order.company} />
             </p>
+            <h2 id="order-modal-title" className="text-lg font-bold text-ink-900 tracking-tight truncate">
+              {modalTitle(order.status)}
+            </h2>
+            <p className="text-sm text-ink-500 font-mono mt-0.5 truncate" title={order.order_ref}>
+              {order.order_ref}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <StatusBadge status={order.status} />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={updating}
+              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-ink-700 hover:bg-ink-100 disabled:opacity-50 transition-colors"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-[1fr_4rem_5rem] gap-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2 px-0.5">
-              <span>Items</span>
-              <span className="text-center">Qty</span>
-              <span className="text-right">Price</span>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-ink-100 bg-ink-50/60 px-3.5 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
+                Customer
+              </p>
+              <p className="text-sm font-semibold text-ink-900 truncate">
+                {displayOrderCustomerName(order)}
+              </p>
+              <p className="text-sm text-ink-500 tabular-nums mt-0.5">{order.customer_phone_number}</p>
             </div>
-
-            <div className="grid grid-cols-[1fr_4rem_5rem] gap-2 text-sm text-gray-700 py-2 border-t border-gray-100">
-              <span className="truncate pr-2" title={order.product_name}>
-                {order.product_name}
-              </span>
-              <span className="text-center tabular-nums">{order.quantity}</span>
-              <span className="text-right tabular-nums">{formatOrderTotal(Number(order.total))}</span>
-            </div>
-
-            <div className="border-t border-dashed border-gray-200 my-4" />
-
-            <div className="flex items-end justify-between gap-4 mb-2">
-              <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">Total</span>
-              <span className="text-3xl font-bold text-emerald-600 tabular-nums leading-none">
-                {formatOrderTotal(Number(order.total))}
-              </span>
-            </div>
-
-            <div className="mt-6 pt-2">
-              <ReceiptBarcode value={order.order_ref.replace(/[^A-Z0-9]/gi, '')} />
-              <p className="text-center text-[10px] text-gray-400 font-mono mt-2 tracking-wider">
-                {order.order_ref}
+            <div className="rounded-xl border border-ink-100 bg-ink-50/60 px-3.5 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 mb-1">
+                Placed
+              </p>
+              <p className="text-sm font-medium text-ink-800">{formatOrderDate(order.created_at)}</p>
+              <p className="text-sm text-ink-500 mt-0.5 truncate" title={formatAddress(order)}>
+                {formatAddress(order)}
               </p>
             </div>
+          </div>
 
-            <div className="mt-5 flex gap-2">
-              {order.status !== 'approved' && (
-                <button
-                  type="button"
-                  disabled={updating}
-                  onClick={() => onApprove(order)}
-                  className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
-                >
-                  {updating ? 'Updating…' : 'Approve'}
-                </button>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">
+                Line items
+              </p>
+              <span className="text-xs text-ink-400 tabular-nums">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-ink-200/80 overflow-hidden">
+              <div className="grid grid-cols-[1fr_3.5rem_5.5rem] gap-2 px-3.5 py-2 bg-ink-50/90 border-b border-ink-100 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                <span>Product</span>
+                <span className="text-center">Qty</span>
+                <span className="text-right">Amount</span>
+              </div>
+
+              {items.length === 0 ? (
+                <p className="px-3.5 py-4 text-sm text-ink-500">No line items recorded.</p>
+              ) : (
+                <ul className="divide-y divide-ink-100">
+                  {items.map(item => {
+                    const label = formatOrderItemLabel(item)
+                    return (
+                      <li
+                        key={item.id}
+                        className="grid grid-cols-[1fr_3.5rem_5.5rem] gap-2 px-3.5 py-3 text-sm text-ink-700"
+                      >
+                        <span className="truncate pr-2 font-medium text-ink-800" title={label}>
+                          {label}
+                        </span>
+                        <span className="text-center tabular-nums text-ink-600">{item.quantity}</span>
+                        <span className="text-right tabular-nums font-medium text-ink-900">
+                          {formatOrderTotal(Number(item.line_total))}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
-              {order.status === 'pending' && (
+
+              <div className="flex items-center justify-between gap-4 px-3.5 py-3.5 bg-ink-50/60 border-t border-ink-100">
+                <span className="text-sm font-semibold text-ink-700">Order total</span>
+                <span className="text-lg font-bold text-brand-700 tabular-nums">
+                  {formatOrderTotal(Number(order.total))}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {(showDraftActions || showPendingActions || showRejectedActions) && (
+          <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-ink-100 bg-ink-50/40 shrink-0">
+            {showDraftActions && (
+              <>
                 <button
                   type="button"
                   disabled={updating}
                   onClick={() => onReject(order)}
-                  className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                  className="btn-secondary w-full sm:w-auto !text-red-600 !border-red-200 hover:!bg-red-50"
                 >
                   Reject
                 </button>
-              )}
-            </div>
-          </div>
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => (onMarkPending ?? onApprove)(order)}
+                  className="btn-primary w-full sm:w-auto"
+                >
+                  {updating ? 'Updating…' : 'Pending approval'}
+                </button>
+              </>
+            )}
 
-          <ReceiptTearEdge position="bottom" />
-        </div>
+            {showPendingActions && (
+              <>
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => onReject(order)}
+                  className="btn-secondary w-full sm:w-auto !text-red-600 !border-red-200 hover:!bg-red-50"
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => onApprove(order)}
+                  className="btn-primary w-full sm:w-auto"
+                >
+                  {updating ? 'Updating…' : 'Approve'}
+                </button>
+              </>
+            )}
+
+            {showRejectedActions && (
+              <button
+                type="button"
+                disabled={updating}
+                onClick={() => onApprove(order)}
+                className="btn-primary w-full sm:w-auto"
+              >
+                {updating ? 'Updating…' : 'Approve'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

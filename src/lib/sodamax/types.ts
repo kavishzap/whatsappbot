@@ -1,4 +1,4 @@
-import type { IncomingWhatsAppMessage, MessageInput } from '@/lib/chatbot/types'
+import type { IncomingWhatsAppMessage, MessageInput } from '@/lib/spark/types'
 
 export type SodamaxChatState =
   | 'idle'
@@ -8,7 +8,8 @@ export type SodamaxChatState =
   | 'awaiting_order_decision'
   | 'awaiting_quantity'
   | 'awaiting_quantity_custom'
-  | 'awaiting_city'
+  | 'awaiting_region'
+  | 'awaiting_delivery_address'
   | 'awaiting_customer_name'
   | 'awaiting_confirm'
 
@@ -18,6 +19,7 @@ export interface SodamaxSession {
   state: SodamaxChatState
   selected_item_id: string | null
   quantity: number | null
+  region: string | null
   city: string | null
   address: string | null
   customer_name: string | null
@@ -35,6 +37,8 @@ export interface SodamaxProduct {
   price: number
   description: string | null
   image_base64: string | null
+  /** Present on list responses — full item must be fetched for image data */
+  has_image?: boolean
   colors: { id?: string; color_name: string; color_hex: string | null }[]
 }
 

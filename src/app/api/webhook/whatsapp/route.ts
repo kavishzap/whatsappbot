@@ -1,9 +1,19 @@
-import { handleChatbotMessage } from '@/lib/chatbot/flow'
+import { handleChatbotMessage } from '@/lib/spark/flow'
 import { handleSodamaxMessage } from '@/lib/sodamax/flow'
+import {
+  OTHER_QUERY_CTA_LABEL,
+  PROCESS_ERROR_MESSAGE,
+  SUPPORT_WHATSAPP_URL,
+} from '@/lib/spark/constants'
+import {
+  PROCESS_ERROR_MESSAGE as SODAMAX_PROCESS_ERROR_MESSAGE,
+  SUPPORT_WHATSAPP_URL as SODAMAX_SUPPORT_WHATSAPP_URL,
+} from '@/lib/sodamax/constants'
+import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
 import { logWhatsAppInbound } from '@/lib/whatsapp-log'
 import { resolveWhatsAppLine, runWithWhatsAppLine } from '@/lib/whatsapp-line'
-import type { IncomingWhatsAppMessage } from '@/lib/chatbot/types'
+import type { IncomingWhatsAppMessage } from '@/lib/spark/types'
 
 function getVerifyToken() {
   return (
@@ -50,14 +60,21 @@ export async function POST(request: Request) {
   const value = (body as { entry?: { changes?: { value?: unknown }[] }[] })
     .entry?.[0]?.changes?.[0]?.value as {
     metadata?: { phone_number_id?: string; display_phone_number?: string }
-    contacts?: unknown[]
+    contacts?: { wa_id?: string; profile?: { name?: string } }[]
     messages?: IncomingWhatsAppMessage[]
     statuses?: unknown[]
   } | undefined
 
   const phoneNumberId = value?.metadata?.phone_number_id
   const line = resolveWhatsAppLine(phoneNumberId)
-  const message = value?.messages?.[0]
+  const rawMessage = value?.messages?.[0]
+  const profileName = value?.contacts
+    ?.find(c => c.wa_id === rawMessage?.from)
+    ?.profile?.name
+    ?.trim()
+  const message = rawMessage
+    ? { ...rawMessage, ...(profileName ? { profile_name: profileName } : {}) }
+    : undefined
 
   logWhatsAppInbound({
     line,
@@ -80,10 +97,21 @@ export async function POST(request: Request) {
       : () => handleChatbotMessage(message)
 
   runWithWhatsAppLine(line, () => {
-    handler().catch(error => {
-      if (!isWhatsAppAuthError(error)) {
-        console.error('Webhook handler error:', error)
+    handler().catch(async error => {
+      if (isWhatsAppAuthError(error)) {
+        console.error('WhatsApp auth error:', error.message)
+        return
       }
+
+      console.error('Webhook handler error:', error)
+
+      const isSodamax = line === 'sodamax'
+      await sendProcessErrorWithSupport(message.from, {
+        message: isSodamax ? SODAMAX_PROCESS_ERROR_MESSAGE : PROCESS_ERROR_MESSAGE,
+        ctaLabel: OTHER_QUERY_CTA_LABEL,
+        supportUrl: isSodamax ? SODAMAX_SUPPORT_WHATSAPP_URL : SUPPORT_WHATSAPP_URL,
+        logLabel: isSodamax ? 'SodaMax webhook' : 'Spark webhook',
+      })
     })
   })
 

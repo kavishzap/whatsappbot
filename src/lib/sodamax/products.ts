@@ -1,8 +1,8 @@
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
-import type { BotItem } from '@/lib/chatbot/types'
+import type { BotItem } from '@/lib/spark/types'
 import type { SodamaxProduct } from './types'
 
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = 5 * 60_000
 let itemsCache: { data: SodamaxProduct[]; at: number } | null = null
 let newMachineIdCache: string | null | undefined
 
@@ -27,6 +27,7 @@ function mapProduct(raw: BotItem): SodamaxProduct {
     price: parsePrice(raw.price),
     description: raw.description?.trim() || null,
     image_base64: raw.image_base64 ?? null,
+    has_image: raw.has_image ?? Boolean(raw.image_base64),
     colors: colors.map(c => ({
       id: c.id ? String(c.id) : undefined,
       color_name: String(c.color_name ?? ''),
@@ -57,10 +58,20 @@ export async function listSodamaxProducts(): Promise<SodamaxProduct[]> {
   return fetchAllProducts()
 }
 
-export async function findSodamaxProductById(id: string): Promise<SodamaxProduct | null> {
+export async function findSodamaxProductById(
+  id: string,
+  options?: { requireImage?: boolean }
+): Promise<SodamaxProduct | null> {
   if (isCacheValid()) {
     const hit = itemsCache!.data.find(item => item.id === id)
-    if (hit?.image_base64) return hit
+    if (hit) {
+      if (options?.requireImage) {
+        if (hit.image_base64) return hit
+        if (hit.has_image === false) return hit
+      } else if (hit.image_base64 || hit.has_image === false || hit.price > 0 || hit.name) {
+        return hit
+      }
+    }
   }
 
   try {
@@ -72,12 +83,20 @@ export async function findSodamaxProductById(id: string): Promise<SodamaxProduct
     if (itemsCache) {
       const idx = itemsCache.data.findIndex(i => i.id === id)
       if (idx >= 0) itemsCache.data[idx] = product
+      else itemsCache.data.push(product)
     }
     return product
   } catch (err) {
     console.error('findSodamaxProductById error:', err)
     return null
   }
+}
+
+/** Load full product data when the list cache omitted image_base64. */
+export async function resolveSodamaxProductWithImage(product: SodamaxProduct): Promise<SodamaxProduct> {
+  if (product.image_base64 || product.has_image === false) return product
+  const full = await findSodamaxProductById(product.id, { requireImage: true })
+  return full ?? product
 }
 
 export function getSodamaxProductLabel(product: SodamaxProduct): string {
@@ -103,7 +122,7 @@ export async function findNewMachineProduct(): Promise<SodamaxProduct | null> {
     : items.find(item => matchesNewMachineName(item.name))
 
   if (!summary) return null
-  return findSodamaxProductById(summary.id)
+  return findSodamaxProductById(summary.id, { requireImage: true })
 }
 
 export async function getNewMachineProductId(): Promise<string | null> {

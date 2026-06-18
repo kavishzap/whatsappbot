@@ -4,22 +4,25 @@
 
 @layer base {
   :root {
-    --canvas: #f1f4f9;
+    --canvas: #eef1f6;
     --surface: #ffffff;
-    --sidebar: #0a101c;
-    --sidebar-hover: #141c2b;
+    --sidebar: #111827;
+    --sidebar-hover: #1f2937;
     --border: #e2e8f0;
     --ring: rgba(16, 185, 129, 0.35);
   }
 
   html {
     @apply scroll-smooth text-[15px];
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    font-family: var(--font-poppins), system-ui, sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     @apply text-ink-900 antialiased;
     background: var(--canvas);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   ::selection {
@@ -53,19 +56,33 @@
   }
 
   .input-compact {
-    @apply h-9 text-sm;
+    @apply h-10 sm:h-9 text-sm;
+  }
+
+  .select-field {
+    @apply h-10 min-h-10 py-0 pl-3 pr-9 text-sm font-medium leading-10 text-ink-700 bg-white border border-ink-200 rounded-lg shadow-sm cursor-pointer transition focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-[var(--ring)];
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 1rem 1rem;
   }
 
   .panel {
-    @apply rounded-xl border border-ink-200/80 bg-white shadow-card overflow-hidden;
+    @apply rounded-2xl border border-ink-200/70 bg-white shadow-card overflow-hidden;
   }
 
   .panel-header {
-    @apply px-3 py-2.5 border-b border-ink-100 bg-ink-50/90 text-xs font-semibold uppercase tracking-wider text-ink-400;
+    @apply px-3 py-2 border-b border-ink-100 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-ink-500;
   }
 
   .stat-card {
-    @apply rounded-xl border border-ink-200/80 bg-white px-3.5 py-3 shadow-card;
+    @apply rounded-xl border border-ink-200/80 bg-white px-3.5 py-3 shadow-card min-w-0;
+  }
+
+  .stat-grid {
+    @apply grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3 gap-2.5;
   }
 
   .badge {
@@ -114,10 +131,7 @@
   }
 
   .bg-sidebar-gradient {
-    background:
-      radial-gradient(ellipse 120% 80% at 0% 0%, rgba(16, 185, 129, 0.08), transparent 50%),
-      radial-gradient(ellipse 80% 60% at 100% 100%, rgba(249, 115, 22, 0.06), transparent 45%),
-      linear-gradient(180deg, #0a101c 0%, #111827 100%);
+    background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
   }
 }
 

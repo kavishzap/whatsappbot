@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 w-full max-w-sm px-4 sm:px-0 pointer-events-none"
+        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] left-4 sm:left-auto z-[100] flex flex-col gap-2 w-auto sm:w-full sm:max-w-sm pointer-events-none"
       >
         {toasts.map(t => (
           <div
@@ -82,7 +82,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => dismiss(t.id)}
-              className="text-ink-400 hover:text-ink-600 shrink-0 p-0.5 rounded-lg"
+              className="text-ink-400 hover:text-ink-600 shrink-0 inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg"
               aria-label="Dismiss"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

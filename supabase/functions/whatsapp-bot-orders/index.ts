@@ -3,7 +3,21 @@ import { getServiceClient, handleOptions, jsonResponse } from '../_shared/http.t
 
 const VALID_STATUSES = ['draft', 'pending', 'approved', 'rejected'] as const
 
-function parseCompany(value: string | null | undefined): 'spark' | 'sodamax' | null {
+type Company = 'spark' | 'sodamax'
+
+type OrderItemInput = {
+  item_id?: string | null
+  color_id?: string | null
+  product_name?: string
+  color_name?: string | null
+  color_hex?: string | null
+  quantity?: number
+  unit_price?: number
+  line_total?: number
+  sort_order?: number
+}
+
+function parseCompany(value: string | null | undefined): Company | null {
   if (value === 'spark' || value === 'sodamax') return value
   return null
 }
@@ -15,7 +29,7 @@ function formatOrderDate(date: Date): string {
   return `${year}${month}${day}`
 }
 
-async function generateOrderRef(supabase: SupabaseClient, company: string): Promise<string> {
+async function generateOrderRef(supabase: SupabaseClient, company: Company): Promise<string> {
   const datePart = formatOrderDate(new Date())
   const prefix = company === 'sodamax' ? `SM-${datePart}-` : `ORD-${datePart}-`
 
@@ -27,8 +41,48 @@ async function generateOrderRef(supabase: SupabaseClient, company: string): Prom
 
   if (error) throw error
 
-  const sequence = (count ?? 0) + 1
-  return `${prefix}${String(sequence).padStart(3, '0')}`
+  return `${prefix}${String((count ?? 0) + 1).padStart(3, '0')}`
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function normalizeItems(value: unknown): OrderItemInput[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => item as OrderItemInput)
+}
+
+async function fetchOrderWithItems(supabase: SupabaseClient, id: string) {
+  const { data, error } = await supabase
+    .from('whatsapp_bot_orders')
+    .select(`
+      *,
+      items:whatsapp_bot_orders_items (
+        id,
+        order_id,
+        item_id,
+        color_id,
+        product_name,
+        color_name,
+        color_hex,
+        quantity,
+        unit_price,
+        line_total,
+        sort_order,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+  return data
 }
 
 Deno.serve(async (req) => {
@@ -43,21 +97,49 @@ Deno.serve(async (req) => {
 
     if (req.method === 'GET') {
       const company = parseCompany(companyFilter)
+
       if (!company) {
-        return jsonResponse({ success: false, error: 'Missing or invalid company (spark|sodamax)' }, 400)
+        return jsonResponse(
+          { success: false, error: 'Missing or invalid company (spark|sodamax)' },
+          400
+        )
       }
 
       const { data, error } = await supabase
         .from('whatsapp_bot_orders')
-        .select('*')
+        .select(`
+          *,
+          items:whatsapp_bot_orders_items (
+            id,
+            order_id,
+            item_id,
+            color_id,
+            product_name,
+            color_name,
+            color_hex,
+            quantity,
+            unit_price,
+            line_total,
+            sort_order,
+            created_at,
+            updated_at
+          )
+        `)
         .eq('company', company)
         .order('created_at', { ascending: false })
+        .order('sort_order', {
+          referencedTable: 'whatsapp_bot_orders_items',
+          ascending: true,
+        })
+
       if (error) throw error
+
       return jsonResponse({ success: true, data })
     }
 
     if (req.method === 'POST') {
       let body: Record<string, unknown>
+
       try {
         body = await req.json()
       } catch {
@@ -66,23 +148,21 @@ Deno.serve(async (req) => {
 
       const company = parseCompany(body.company as string) ?? 'spark'
       const status =
-        typeof body.status === 'string' && VALID_STATUSES.includes(body.status as (typeof VALID_STATUSES)[number])
+        typeof body.status === 'string' &&
+        VALID_STATUSES.includes(body.status as (typeof VALID_STATUSES)[number])
           ? body.status
           : 'pending'
 
       const isDraft = status === 'draft'
+      const items = normalizeItems(body.items)
+
+      if (items.length === 0) {
+        return jsonResponse({ success: false, error: 'Missing required field: items' }, 400)
+      }
 
       const required = isDraft
-        ? (['customer_phone_number', 'product_name', 'quantity', 'city', 'total'] as const)
-        : ([
-            'customer_name',
-            'customer_phone_number',
-            'product_name',
-            'quantity',
-            'city',
-            'address',
-            'total',
-          ] as const)
+        ? (['customer_phone_number', 'city'] as const)
+        : (['customer_name', 'customer_phone_number', 'city', 'address'] as const)
 
       for (const field of required) {
         if (body[field] === undefined || body[field] === null || body[field] === '') {
@@ -90,43 +170,118 @@ Deno.serve(async (req) => {
         }
       }
 
+      for (const [index, item] of items.entries()) {
+        if (!item.product_name || !String(item.product_name).trim()) {
+          return jsonResponse(
+            { success: false, error: `Missing product_name for item ${index + 1}` },
+            400
+          )
+        }
+
+        if (toNumber(item.quantity, 0) <= 0) {
+          return jsonResponse(
+            { success: false, error: `Invalid quantity for item ${index + 1}` },
+            400
+          )
+        }
+      }
+
       const customer_name = isDraft
-        ? (typeof body.customer_name === 'string' && body.customer_name.trim()
-            ? body.customer_name
-            : 'Draft')
-        : body.customer_name
+        ? typeof body.customer_name === 'string' && body.customer_name.trim()
+          ? body.customer_name.trim()
+          : null
+        : String(body.customer_name ?? '').trim()
+
+      if (!isDraft && !customer_name) {
+        return jsonResponse({ success: false, error: 'Missing required field: customer_name' }, 400)
+      }
 
       const address = isDraft
-        ? (typeof body.address === 'string' && body.address.trim() ? body.address : '—')
+        ? typeof body.address === 'string' && body.address.trim()
+          ? body.address
+          : '—'
         : body.address
+
+      const total =
+        body.total !== undefined && body.total !== null
+          ? toNumber(body.total, 0)
+          : items.reduce((sum, item) => {
+              const quantity = toNumber(item.quantity, 1)
+              const unitPrice = toNumber(item.unit_price, 0)
+              const lineTotal =
+                item.line_total !== undefined && item.line_total !== null
+                  ? toNumber(item.line_total, quantity * unitPrice)
+                  : quantity * unitPrice
+
+              return sum + lineTotal
+            }, 0)
 
       for (let attempt = 0; attempt < 10; attempt++) {
         const order_ref = await generateOrderRef(supabase, company)
 
-        const { data, error } = await supabase
+        const firstItem = items[0]
+        const firstQuantity = toNumber(firstItem.quantity, 1)
+
+        const orderInsert: Record<string, unknown> = {
+          order_ref,
+          company,
+          customer_name: customer_name ?? '—',
+          customer_phone_number: body.customer_phone_number,
+          product_name: String(firstItem.product_name),
+          quantity: firstQuantity,
+          city: body.city,
+          address,
+          total,
+          status,
+        }
+
+        if (typeof body.city_id === 'string' && body.city_id.trim()) {
+          orderInsert.city_id = body.city_id.trim()
+        }
+
+        const { data: order, error: orderError } = await supabase
           .from('whatsapp_bot_orders')
-          .insert({
-            order_ref,
-            company,
-            customer_name,
-            customer_phone_number: body.customer_phone_number,
-            product_name: body.product_name,
-            quantity: body.quantity,
-            city: body.city,
-            address,
-            total: body.total,
-            status,
-          })
+          .insert(orderInsert)
           .select()
           .single()
 
-        if (error?.code === '23505') continue
-        if (error) throw error
+        if (orderError?.code === '23505') continue
+        if (orderError) throw orderError
+
+        const orderItems = items.map((item, index) => {
+          const quantity = toNumber(item.quantity, 1)
+          const unitPrice = toNumber(item.unit_price, 0)
+          const lineTotal =
+            item.line_total !== undefined && item.line_total !== null
+              ? toNumber(item.line_total, quantity * unitPrice)
+              : quantity * unitPrice
+
+          return {
+            order_id: order.id,
+            item_id: item.item_id ?? null,
+            color_id: item.color_id ?? null,
+            product_name: String(item.product_name),
+            color_name: item.color_name ?? null,
+            color_hex: item.color_hex ?? null,
+            quantity,
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            sort_order: item.sort_order ?? index,
+          }
+        })
+
+        const { error: itemsError } = await supabase
+          .from('whatsapp_bot_orders_items')
+          .insert(orderItems)
+
+        if (itemsError) throw itemsError
+
+        const fullOrder = await fetchOrderWithItems(supabase, order.id)
 
         return jsonResponse({
           success: true,
           message: isDraft ? 'Draft order created' : 'Order created successfully',
-          data,
+          data: fullOrder,
         })
       }
 
@@ -142,20 +297,51 @@ Deno.serve(async (req) => {
         status?: string
         customer_name?: string
         address?: string
+        city?: string
+        city_id?: string | null
+        total?: number
         company?: string
+        items?: unknown
       }
+
       try {
         body = await req.json()
       } catch {
         return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400)
       }
 
-      const { id, status, customer_name, address, company: bodyCompany } = body
+      const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, items: rawItems } =
+        body
+
       if (!id) {
         return jsonResponse({ success: false, error: 'Missing order id' }, 400)
       }
 
       const company = parseCompany(bodyCompany)
+      const items = normalizeItems(rawItems)
+      const hasItemUpdates = Array.isArray(rawItems)
+
+      if (hasItemUpdates && items.length === 0) {
+        return jsonResponse({ success: false, error: 'Missing required field: items' }, 400)
+      }
+
+      if (hasItemUpdates) {
+        for (const [index, item] of items.entries()) {
+          if (!item.product_name || !String(item.product_name).trim()) {
+            return jsonResponse(
+              { success: false, error: `Missing product_name for item ${index + 1}` },
+              400
+            )
+          }
+
+          if (toNumber(item.quantity, 0) <= 0) {
+            return jsonResponse(
+              { success: false, error: `Invalid quantity for item ${index + 1}` },
+              400
+            )
+          }
+        }
+      }
 
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -165,13 +351,45 @@ Deno.serve(async (req) => {
         if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
           return jsonResponse({ success: false, error: 'Invalid status' }, 400)
         }
+
         updates.status = status
       }
 
-      if (customer_name !== undefined) updates.customer_name = customer_name
+      if (customer_name !== undefined) {
+        const trimmed = String(customer_name).trim()
+        if (!trimmed && status === 'pending') {
+          return jsonResponse({ success: false, error: 'Invalid customer_name' }, 400)
+        }
+        updates.customer_name = trimmed || null
+      }
       if (address !== undefined) updates.address = address
+      if (city !== undefined) updates.city = city
+      if (city_id !== undefined) {
+        updates.city_id =
+          typeof city_id === 'string' && city_id.trim() ? city_id.trim() : null
+      }
 
-      if (Object.keys(updates).length === 1) {
+      if (hasItemUpdates) {
+        const computedTotal = items.reduce((sum, item) => {
+          const quantity = toNumber(item.quantity, 1)
+          const unitPrice = toNumber(item.unit_price, 0)
+          const lineTotal =
+            item.line_total !== undefined && item.line_total !== null
+              ? toNumber(item.line_total, quantity * unitPrice)
+              : quantity * unitPrice
+
+          return sum + lineTotal
+        }, 0)
+
+        const firstItem = items[0]
+        updates.product_name = String(firstItem.product_name)
+        updates.quantity = toNumber(firstItem.quantity, 1)
+        updates.total = total !== undefined ? toNumber(total, computedTotal) : computedTotal
+      } else if (total !== undefined) {
+        updates.total = total
+      }
+
+      if (Object.keys(updates).length === 1 && !hasItemUpdates) {
         return jsonResponse({ success: false, error: 'No fields to update' }, 400)
       }
 
@@ -184,15 +402,56 @@ Deno.serve(async (req) => {
         query = query.eq('company', company)
       }
 
-      const { data, error } = await query.select('*').single()
+      const { data: updatedOrder, error } = await query.select('*').single()
 
       if (error) throw error
-      return jsonResponse({ success: true, data })
+
+      if (hasItemUpdates) {
+        const { error: deleteItemsError } = await supabase
+          .from('whatsapp_bot_orders_items')
+          .delete()
+          .eq('order_id', id)
+
+        if (deleteItemsError) throw deleteItemsError
+
+        const orderItems = items.map((item, index) => {
+          const quantity = toNumber(item.quantity, 1)
+          const unitPrice = toNumber(item.unit_price, 0)
+          const lineTotal =
+            item.line_total !== undefined && item.line_total !== null
+              ? toNumber(item.line_total, quantity * unitPrice)
+              : quantity * unitPrice
+
+          return {
+            order_id: id,
+            item_id: item.item_id ?? null,
+            color_id: item.color_id ?? null,
+            product_name: String(item.product_name),
+            color_name: item.color_name ?? null,
+            color_hex: item.color_hex ?? null,
+            quantity,
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            sort_order: item.sort_order ?? index,
+          }
+        })
+
+        const { error: insertItemsError } = await supabase
+          .from('whatsapp_bot_orders_items')
+          .insert(orderItems)
+
+        if (insertItemsError) throw insertItemsError
+      }
+
+      const fullOrder = await fetchOrderWithItems(supabase, updatedOrder.id)
+
+      return jsonResponse({ success: true, data: fullOrder })
     }
 
     return jsonResponse({ success: false, error: 'Method not allowed' }, 405)
   } catch (error) {
     console.error('whatsapp-bot-orders error:', error)
+
     return jsonResponse(
       {
         success: false,

@@ -45,36 +45,24 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ]
 
-export const PAGE_META: Record<string, { title: string; subtitle: string; section?: string }> = {
+export const PAGE_META: Record<string, { title: string }> = {
   '/dashboard/whatsapp-bot': {
-    title: 'Products',
-    subtitle: 'Spark bot catalog — ad links, images, and automated order flows',
-    section: 'Spark',
+    title: 'Products: Spark',
   },
   '/dashboard/orders': {
-    title: 'Orders',
-    subtitle: 'Review and approve Spark customer orders from WhatsApp',
-    section: 'Spark',
+    title: 'Orders: Spark',
   },
   '/dashboard/whatsapp-product': {
-    title: 'Products',
-    subtitle: 'SodaMax catalog with optional color variants',
-    section: 'SodaMax',
+    title: 'Products: SodaMax',
   },
   '/dashboard/sodamax-orders': {
-    title: 'Orders',
-    subtitle: 'Review and approve SodaMax customer orders from WhatsApp',
-    section: 'SodaMax',
+    title: 'Orders: SodaMax',
   },
   '/dashboard/ordering-platform-test': {
-    title: 'Platform Test',
-    subtitle: 'Embedded SodaMax online ordering preview',
-    section: 'SodaMax',
+    title: 'Platform Test: SodaMax',
   },
   '/dashboard/admin/whatsapp': {
-    title: 'WhatsApp Integration',
-    subtitle: 'Send test messages from Spark or SodaMax business numbers',
-    section: 'Admin',
+    title: 'WhatsApp Integration: Admin',
   },
 }
 
