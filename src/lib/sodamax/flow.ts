@@ -85,7 +85,7 @@ export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Pr
 
   try {
     const orderRef = parseOrderRef(input)
-    if (orderRef && (session.state === 'idle' || session.state === 'awaiting_web_checkout')) {
+    if (orderRef) {
       await resumeFromWebDraftOrder(phone, orderRef)
       return
     }
