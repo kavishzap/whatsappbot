@@ -229,7 +229,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <DashboardTopBar title={pageMeta.title} />
             </header>
 
-            <main className="flex-1 flex flex-col min-h-0 overflow-auto p-3 sm:p-4 lg:p-5">
+            <main className="flex-1 flex flex-col min-h-0 overflow-hidden p-3 sm:p-4 lg:p-5">
               <div className="w-full flex flex-col flex-1 min-h-0 gap-3">{children}</div>
             </main>
           </div>

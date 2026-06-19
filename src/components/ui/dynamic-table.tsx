@@ -435,7 +435,7 @@ export function DynamicTable<T>({
         </div>
       )}
 
-      <div className={`flex-1 min-h-0 ${fitScreen ? 'overflow-hidden' : 'overflow-auto'}`}>
+      <div className="flex-1 min-h-0 min-w-0 overflow-auto overscroll-contain">
         {loading ? (
           <TableSpinner />
         ) : data.length === 0 ? (

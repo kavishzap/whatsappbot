@@ -138,7 +138,7 @@ function TestPanel({
 
 export default function WhatsAppIntegrationPage() {
   return (
-    <div className="flex flex-col gap-5 animate-fade-in">
+    <div className="flex flex-col gap-5 animate-fade-in flex-1 min-h-0 overflow-auto">
       <div className="panel p-5 sm:p-6 bg-gradient-to-br from-white via-white to-ink-50/80">
         <h2 className="text-sm font-semibold text-ink-900">Integration overview</h2>
         <p className="text-sm text-ink-500 mt-1 max-w-2xl leading-relaxed">

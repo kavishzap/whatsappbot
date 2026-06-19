@@ -328,7 +328,7 @@ export default function WhatsAppProductPage() {
   )
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full gap-3">
+    <div className="flex flex-col flex-1 min-h-0 w-full gap-3 overflow-hidden">
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete product?"

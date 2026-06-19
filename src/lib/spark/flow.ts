@@ -81,18 +81,6 @@ function persistSession(
   return merged
 }
 
-/** Send the WhatsApp reply first; persist session in the background. */
-async function replyThenPersist(
-  phone: string,
-  session: WhatsAppSession,
-  updates: Partial<Omit<WhatsAppSession, 'phone' | 'updated_at'>>,
-  reply: () => Promise<void>,
-  options?: { includeCart?: boolean }
-): Promise<WhatsAppSession> {
-  await reply()
-  return persistSession(phone, session, updates, options)
-}
-
 async function applyCityMatchToDraft(
   orderId: string,
   deliveryAddress: string,
