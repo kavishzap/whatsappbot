@@ -1,9 +1,14 @@
 import type { MessageInput } from './types'
+import { NEW_MACHINE_COLOR_OPTIONS } from './constants'
 
 export {
   parseRegionSelection,
   parseAddress,
 } from '@/lib/spark/parse-input'
+
+const NEW_MACHINE_COLOR_BY_ID = Object.fromEntries(
+  NEW_MACHINE_COLOR_OPTIONS.map(option => [option.id, option.title])
+)
 
 function normalize(text: string): string {
   return text
@@ -22,7 +27,12 @@ export function parseMenuSelection(input: MessageInput): string | null {
 
   if (input.type === 'text') {
     const n = normalize(input.value)
-    if (n.includes('new machine') || n === 'machine') return 'sm_new_machine'
+    if (n.includes('sodamax machine') || n.includes('new machine') || n.includes('order machine')) {
+      return 'sm_new_machine'
+    }
+    if (n.includes('refill') || n.includes('other product') || n.includes('monin')) {
+      return 'sm_order_product'
+    }
     if (n.includes('product') || n.includes('order')) return 'sm_order_product'
     if (n.includes('query') || n.includes('help') || n.includes('support')) return 'sm_other_query'
     if (matchesAny(n, ['menu', 'start', 'hi', 'hello'])) return 'sm_show_menu'
@@ -54,6 +64,11 @@ export function isColorYesAnswer(input: MessageInput): boolean {
 
 export function isColorNoAnswer(input: MessageInput): boolean {
   return input.type === 'button' && input.value === 'sm_color_no'
+}
+
+export function parseNewMachineColorSelection(input: MessageInput): string | null {
+  if (input.type !== 'list' && input.type !== 'button') return null
+  return NEW_MACHINE_COLOR_BY_ID[input.value] ?? null
 }
 
 export function parseProductSelection(input: MessageInput): string | null {
@@ -103,4 +118,12 @@ export function parseCustomerName(input: MessageInput): string | null {
 export function truncate(text: string, max: number): string {
   if (text.length <= max) return text
   return `${text.slice(0, max - 1)}…`
+}
+
+const ORDER_REF_PATTERN = /\b(SM-\d{8}-\d{3})\b/i
+
+export function parseOrderRef(input: MessageInput): string | null {
+  if (input.type !== 'text') return null
+  const match = input.value.match(ORDER_REF_PATTERN)
+  return match ? match[1].toUpperCase() : null
 }

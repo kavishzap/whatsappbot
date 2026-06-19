@@ -128,7 +128,6 @@ Deno.serve(async (req) => {
         .from('whatsapp_sessions')
         .select('*')
         .neq('state', 'idle')
-        .is('region', null)
         .lt('reminder_count', 3)
         .not('last_inbound_at', 'is', null)
         .gt('last_inbound_at', windowStart)

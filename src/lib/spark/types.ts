@@ -85,7 +85,7 @@ export interface IncomingWhatsAppMessage {
 
 import { REMINDER_INACTIVITY_HOURS } from './constants'
 
-/** True once a draft order exists (checkout past quantity — no session reminders after this). */
+/** True once a draft order exists (checkout past quantity). */
 export function isCheckoutStarted(session: WhatsAppSession): boolean {
   return Boolean(session.draft_order_id)
 }
@@ -95,14 +95,18 @@ export function isRegionStepComplete(session: WhatsAppSession): boolean {
   return isCheckoutStarted(session)
 }
 
+/** Flow is complete when session is idle (e.g. after confirmed order or explicit reset). */
+export function isFlowComplete(session: WhatsAppSession): boolean {
+  return session.state === 'idle'
+}
+
 /** Spark add-more loop: customer details and draft already captured. */
 export function isAddMoreCheckoutReady(session: WhatsAppSession): boolean {
   return Boolean(session.draft_order_id && session.customer_name)
 }
 
 export function isReminderEligible(session: WhatsAppSession): boolean {
-  if (session.state === 'idle') return false
-  if (isCheckoutStarted(session)) return false
+  if (isFlowComplete(session)) return false
   if ((session.reminder_count ?? 0) >= 3) return false
   if (!session.last_inbound_at) return false
 

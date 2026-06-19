@@ -43,6 +43,8 @@ interface DynamicTableProps<T> {
   searchFilter?: (row: T, query: string) => boolean
   filters?: DynamicTableFilter<T>[]
   filterExtras?: ReactNode
+  /** When true, filterExtras (e.g. date range) count as active for the clear button. */
+  extrasActive?: boolean
   onClearFilters?: () => void
   toolbar?: ReactNode
   onRowClick?: (row: T) => void
@@ -222,6 +224,7 @@ export function DynamicTable<T>({
   searchFilter,
   filters = [],
   filterExtras,
+  extrasActive = false,
   onClearFilters,
   toolbar,
   onRowClick,
@@ -288,6 +291,9 @@ export function DynamicTable<T>({
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' || filters.some(f => f.value !== '') || extrasActive
 
   const clearFilters = () => {
     setSearchQuery('')
@@ -404,6 +410,15 @@ export function DynamicTable<T>({
               </div>
             ))}
             {filterExtras}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="btn-secondary shrink-0 !py-1.5 !px-3 text-sm"
+              >
+                Clear filters
+              </button>
+            )}
             {exportConfig && exportConfig.placement !== 'header' && (
               <button
                 type="button"

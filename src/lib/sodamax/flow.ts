@@ -10,7 +10,12 @@ import {
 } from '@/lib/whatsapp'
 import { getCachedMediaId, setCachedMediaId } from '@/lib/spark/media-cache'
 import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
-import { createDraftOrder, completeDraftOrder, patchDraftOrder } from '@/lib/spark/orders'
+import { createDraftOrder, completeDraftOrder, patchDraftOrder, getDraftOrderByRef, getDraftOrderById } from '@/lib/spark/orders'
+import {
+  displayOrderCustomerName,
+  formatOrderItemLabel,
+  formatOrderTotal,
+} from '@/lib/whatsapp-bot-orders'
 import { extractMessageInput, parseProfileName, parseCustomerName } from '@/lib/spark/parse-input'
 import { loadSession, updateSession, resetSession } from './session'
 import { findSodamaxProductById, getSodamaxProductLabel, findNewMachineProduct, isNewMachineProductId, resolveSodamaxProductWithImage } from './products'
@@ -26,6 +31,8 @@ import {
   parseQuantitySelection,
   parseQuantity,
   parseAddress,
+  parseNewMachineColorSelection,
+  parseOrderRef,
 } from './parse-input'
 import {
   MAIN_MENU_BUTTONS,
@@ -33,15 +40,22 @@ import {
   OTHER_QUERY_MESSAGE,
   OTHER_QUERY_CTA_LABEL,
   SUPPORT_WHATSAPP_URL,
+  WEB_CHECKOUT_MESSAGE,
+  WEB_CHECKOUT_CTA_LABEL,
+  buildOrderPlatformUrl,
   QUANTITY_OPTIONS,
+  NEW_MACHINE_COLOR_OPTIONS,
+  NEW_MACHINE_COLOR_PROMPT,
   formatTotal,
   computeOrderTotal,
   PROCESS_ERROR_MESSAGE,
   DELIVERY_CONFIRMATION_MESSAGE,
 } from './constants'
+import { sendSodamaxFlavourPromo } from './promo'
 import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
 import { buildCityIdPatch } from '@/lib/spark/match-city'
 import type { IncomingWhatsAppMessage, MessageInput, SodamaxProduct, SodamaxSession } from './types'
+import type { WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
 
 async function sendProcessError(phone: string, reset = true): Promise<void> {
   await sendProcessErrorWithSupport(phone, {
@@ -70,8 +84,21 @@ export async function handleSodamaxMessage(message: IncomingWhatsAppMessage): Pr
   }
 
   try {
+    const orderRef = parseOrderRef(input)
+    if (orderRef && (session.state === 'idle' || session.state === 'awaiting_web_checkout')) {
+      await resumeFromWebDraftOrder(phone, orderRef)
+      return
+    }
+
     if (session.state !== 'idle') {
       await handleActiveSession(phone, session, input, message.profile_name)
+      return
+    }
+
+    const menuSelection = parseMenuSelection(input)
+    if (menuSelection && menuSelection !== 'sm_show_menu') {
+      await updateSession(phone, { state: 'awaiting_menu_selection' })
+      await handleMenuSelection(phone, input, message.profile_name)
       return
     }
 
@@ -114,7 +141,7 @@ async function handleActiveSession(
 ): Promise<void> {
   switch (session.state) {
     case 'awaiting_menu_selection':
-      await handleMenuSelection(phone, input)
+      await handleMenuSelection(phone, input, profileName)
       break
     case 'awaiting_product_selection':
       await handleProductSelection(phone, input)
@@ -157,13 +184,21 @@ async function handleActiveSession(
     case 'awaiting_confirm':
       await handleConfirm(phone, session, input)
       break
+    case 'awaiting_web_checkout':
+      await handleWebCheckout(phone, input, profileName)
+      break
     default:
       await resetSession(phone)
   }
 }
 
-async function handleMenuSelection(phone: string, input: MessageInput): Promise<void> {
+async function handleMenuSelection(
+  phone: string,
+  input: MessageInput,
+  profileName?: string
+): Promise<void> {
   const selection = parseMenuSelection(input)
+  const customerName = parseProfileName(profileName)
 
   if (selection === 'sm_show_menu' || !selection) {
     if (selection === null && input.type === 'text' && input.value) {
@@ -179,9 +214,20 @@ async function handleMenuSelection(phone: string, input: MessageInput): Promise<
   }
 
   if (selection === 'sm_order_product') {
+    const storeUrl = buildOrderPlatformUrl(phone, customerName)
     await Promise.all([
-      updateSession(phone, { state: 'awaiting_product_selection' }),
-      sendSodamaxProductList(phone),
+      updateSession(phone, {
+        state: 'awaiting_web_checkout',
+        selected_item_id: null,
+        quantity: null,
+        region: null,
+        city: null,
+        address: null,
+        customer_name: customerName,
+        total: null,
+        draft_order_id: null,
+      }),
+      sendWhatsAppCtaUrl(phone, WEB_CHECKOUT_MESSAGE, WEB_CHECKOUT_CTA_LABEL, storeUrl),
     ])
     return
   }
@@ -212,15 +258,26 @@ async function startNewMachineFlow(phone: string): Promise<void> {
   }
 
   await sendProductContent(phone, product, null)
+  await beginNewMachineColorSelection(phone, product)
+}
 
-  if (product.colors.length > 0) {
-    await beginColorSelection(phone, product)
-    return
-  }
+async function sendNewMachineColorList(phone: string): Promise<void> {
+  await sendWhatsAppList(
+    phone,
+    NEW_MACHINE_COLOR_PROMPT,
+    'Select color',
+    NEW_MACHINE_COLOR_OPTIONS.map(option => ({
+      id: option.id,
+      title: option.title,
+    })),
+    'Colors'
+  )
+}
 
+async function beginNewMachineColorSelection(phone: string, product: SodamaxProduct): Promise<void> {
   await Promise.all([
     updateSession(phone, {
-      state: 'awaiting_quantity',
+      state: 'awaiting_color_selection',
       selected_item_id: product.id,
       quantity: null,
       city: null,
@@ -229,7 +286,7 @@ async function startNewMachineFlow(phone: string): Promise<void> {
       total: null,
       draft_order_id: null,
     }),
-    askQuantity(phone, product.id),
+    sendNewMachineColorList(phone),
   ])
 }
 
@@ -326,7 +383,23 @@ async function handleColorSelection(
   }
 
   const product = await findSodamaxProductById(session.selected_item_id)
-  if (!product || product.colors.length === 0) {
+  if (!product) {
+    await sendProcessError(phone)
+    return
+  }
+
+  if (await isNewMachineProductId(session.selected_item_id)) {
+    const colorName = parseNewMachineColorSelection(input)
+    if (!colorName) {
+      await sendWhatsAppText(phone, 'Please select a color from the list below.')
+      await sendNewMachineColorList(phone)
+      return
+    }
+    await proceedToQuantityAfterColor(phone, product, colorName)
+    return
+  }
+
+  if (product.colors.length === 0) {
     await sendProcessError(phone)
     return
   }
@@ -340,10 +413,6 @@ async function handleColorSelection(
   }
 
   if (isColorYesAnswer(input)) {
-    if (await isNewMachineProductId(session.selected_item_id)) {
-      await proceedToQuantityAfterColor(phone, product, color.color_name)
-      return
-    }
     await startProductOrder(phone, product, color.color_name)
     return
   }
@@ -640,6 +709,139 @@ async function handleDeliveryAddress(
   await proceedToConfirmWithProfileName(phone, session, deliveryAddress, profileName)
 }
 
+async function handleWebCheckout(phone: string, input: MessageInput, profileName?: string): Promise<void> {
+  const orderRef = parseOrderRef(input)
+  if (orderRef) {
+    await resumeFromWebDraftOrder(phone, orderRef)
+    return
+  }
+
+  const menuSelection = parseMenuSelection(input)
+  if (menuSelection === 'sm_show_menu') {
+    await sendMainMenu(phone)
+    return
+  }
+
+  if (menuSelection && menuSelection !== 'sm_order_product') {
+    await handleMenuSelection(phone, input, profileName)
+    return
+  }
+
+  const customerName = parseProfileName(profileName)
+
+  await sendWhatsAppCtaUrl(
+    phone,
+    WEB_CHECKOUT_MESSAGE,
+    WEB_CHECKOUT_CTA_LABEL,
+    buildOrderPlatformUrl(phone, customerName)
+  )
+}
+
+function countWebOrderItems(order: WhatsAppBotOrder): number {
+  return order.items
+    .filter(
+      item =>
+        item.quantity > 0 &&
+        !item.product_name.includes('Delivery fee') &&
+        !item.product_name.includes('Gift card discount')
+    )
+    .reduce((sum, item) => sum + item.quantity, 0)
+}
+
+function formatWebOrderItemLines(order: WhatsAppBotOrder): string[] {
+  return order.items
+    .filter(
+      item =>
+        item.quantity > 0 &&
+        !item.product_name.includes('Delivery fee') &&
+        !item.product_name.includes('Gift card discount')
+    )
+    .map(item => `${item.quantity}× ${formatOrderItemLabel(item)}`)
+}
+
+async function resumeFromWebDraftOrder(phone: string, orderRef: string): Promise<void> {
+  const order = await getDraftOrderByRef(orderRef, phone, 'sodamax')
+  if (!order) {
+    await sendWhatsAppText(
+      phone,
+      'We could not find that order. Please check the reference and try again, or tap *Open store* to start a new order.'
+    )
+    await sendWhatsAppCtaUrl(
+      phone,
+      WEB_CHECKOUT_MESSAGE,
+      WEB_CHECKOUT_CTA_LABEL,
+      buildOrderPlatformUrl(phone)
+    )
+    return
+  }
+
+  const customerName = order.customer_name?.trim()
+  if (!customerName || customerName === '—') {
+    await Promise.all([
+      updateSession(phone, {
+        state: 'awaiting_customer_name',
+        draft_order_id: order.id,
+        selected_item_id: null,
+        quantity: countWebOrderItems(order) || 1,
+        city: order.city,
+        address: order.address,
+        total: order.total,
+      }),
+      sendWhatsAppText(phone, 'What is your full name?'),
+    ])
+    return
+  }
+
+  const cityIdPatch = await buildCityIdPatch('sodamax', order.city, null)
+
+  const patchResult = await patchDraftOrder(order.id, {
+    company: 'sodamax',
+    customer_name: customerName,
+    ...cityIdPatch,
+  })
+
+  if (!patchResult.success) {
+    console.error('patchDraftOrder failed:', patchResult.error)
+    await sendProcessError(phone)
+    return
+  }
+
+  const itemQty = countWebOrderItems(order) || 1
+
+  await Promise.all([
+    updateSession(phone, {
+      state: 'awaiting_confirm',
+      draft_order_id: order.id,
+      selected_item_id: null,
+      quantity: itemQty,
+      city: order.city,
+      address: order.address,
+      customer_name: customerName,
+      total: order.total,
+    }),
+    sendWebOrderSummary(phone, order),
+  ])
+}
+
+async function sendWebOrderSummary(phone: string, order: WhatsAppBotOrder): Promise<void> {
+  const itemLines = formatWebOrderItemLines(order)
+  const summary = [
+    '*Order summary*',
+    '',
+    `*Ref:* ${order.order_ref}`,
+    `Name: ${displayOrderCustomerName(order)}`,
+    `Address: ${order.address}`,
+    `City: ${order.city}`,
+    '',
+    'Items:',
+    ...itemLines,
+    '',
+    `*Total: ${formatOrderTotal(order.total)}*`,
+  ].join('\n')
+
+  await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])
+}
+
 async function proceedToConfirmWithProfileName(
   phone: string,
   session: SodamaxSession,
@@ -667,7 +869,7 @@ async function proceedToConfirmWithProfileName(
     return
   }
 
-  const cityIdPatch = await buildCityIdPatch('sodamax', deliveryAddress)
+  const cityIdPatch = await buildCityIdPatch('sodamax', deliveryAddress, session.region)
 
   const patchResult = await patchDraftOrder(session.draft_order_id, {
     company: 'sodamax',
@@ -694,6 +896,14 @@ async function proceedToConfirmWithProfileName(
 }
 
 async function sendOrderSummary(phone: string, session: SodamaxSession): Promise<void> {
+  if (!session.selected_item_id && session.draft_order_id) {
+    const order = await getDraftOrderById(session.draft_order_id, 'sodamax')
+    if (order) {
+      await sendWebOrderSummary(phone, order)
+      return
+    }
+  }
+
   const product = session.selected_item_id
     ? await findSodamaxProductById(session.selected_item_id)
     : null
@@ -720,12 +930,14 @@ async function handleConfirm(phone: string, session: SodamaxSession, input: Mess
     return
   }
 
+  const isWebCheckout = !session.selected_item_id
+
   if (
     !session.draft_order_id ||
     !session.customer_name ||
-    !session.quantity ||
     !session.city ||
-    session.total === null
+    session.total === null ||
+    (!isWebCheckout && (!session.quantity || !session.selected_item_id))
   ) {
     await sendProcessError(phone)
     return
@@ -738,7 +950,6 @@ async function handleConfirm(phone: string, session: SodamaxSession, input: Mess
   )
 
   if (result.success) {
-    await resetSession(phone)
     await sendWhatsAppText(
       phone,
       [
@@ -750,6 +961,8 @@ async function handleConfirm(phone: string, session: SodamaxSession, input: Mess
         DELIVERY_CONFIRMATION_MESSAGE,
       ].join('\n')
     )
+    await sendSodamaxFlavourPromo(phone)
+    await resetSession(phone)
     return
   }
 

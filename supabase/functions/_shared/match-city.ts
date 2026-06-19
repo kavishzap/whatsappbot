@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { matchCityFromAddressText, type CityCandidate } from './city-matcher.ts'
+import { matchCityHybrid } from './city-matcher-llm.ts'
+import type { CityCandidate } from './city-matcher.ts'
 
 export interface CityRecord extends CityCandidate {
   company_id?: string
@@ -44,7 +45,9 @@ export async function resolveCityFromAddress(
     return { city_id: null, city_name: null }
   }
 
-  const match = matchCityFromAddressText(cities, trimmedAddress)
+  const match = await matchCityHybrid(cities, trimmedAddress, {
+    regionHint: trimmedRegion || undefined,
+  })
   if (!match) {
     return { city_id: null, city_name: null }
   }

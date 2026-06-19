@@ -12,6 +12,7 @@ export type SodamaxChatState =
   | 'awaiting_delivery_address'
   | 'awaiting_customer_name'
   | 'awaiting_confirm'
+  | 'awaiting_web_checkout'
 
 export interface SodamaxSession {
   phone: string

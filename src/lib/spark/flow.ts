@@ -93,9 +93,13 @@ async function replyThenPersist(
   return persistSession(phone, session, updates, options)
 }
 
-async function applyCityMatchToDraft(orderId: string, deliveryAddress: string): Promise<void> {
+async function applyCityMatchToDraft(
+  orderId: string,
+  deliveryAddress: string,
+  region?: string | null
+): Promise<void> {
   try {
-    const cityIdPatch = await buildCityIdPatch('spark', deliveryAddress)
+    const cityIdPatch = await buildCityIdPatch('spark', deliveryAddress, region)
     if (cityIdPatch.city_id) {
       await patchDraftOrder(orderId, { company: 'spark', ...cityIdPatch })
     }
@@ -784,7 +788,7 @@ async function proceedToConfirmWithProfileName(
     () => sendOrderSummary(phone, updatedSession)
   )
 
-  void applyCityMatchToDraft(session.draft_order_id, deliveryAddress)
+  void applyCityMatchToDraft(session.draft_order_id, deliveryAddress, session.region)
 }
 
 async function handleRemoveLastItem(phone: string, session: WhatsAppSession): Promise<void> {
@@ -897,7 +901,7 @@ async function handleConfirm(
         DELIVERY_CONFIRMATION_MESSAGE,
       ].join('\n')
     )
-    void resetSession(phone).catch(err => console.error('resetSession failed:', err))
+    await resetSession(phone)
     return
   }
 

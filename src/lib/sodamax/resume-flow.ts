@@ -1,9 +1,16 @@
-import { sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList } from '@/lib/whatsapp'
+import { sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList, sendWhatsAppCtaUrl } from '@/lib/whatsapp'
 import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
 import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/spark/constants'
-import { findSodamaxProductById, getSodamaxProductLabel } from './products'
+import { findSodamaxProductById, getSodamaxProductLabel, isNewMachineProductId } from './products'
 import { sendSodamaxProductList } from './product-list'
-import { MAIN_MENU_BUTTONS } from './constants'
+import {
+  MAIN_MENU_BUTTONS,
+  NEW_MACHINE_COLOR_OPTIONS,
+  NEW_MACHINE_COLOR_PROMPT,
+  WEB_CHECKOUT_MESSAGE,
+  WEB_CHECKOUT_CTA_LABEL,
+  buildOrderPlatformUrl,
+} from './constants'
 import type { SodamaxProduct, SodamaxSession } from './types'
 
 async function sendOrderDecisionButtons(phone: string): Promise<void> {
@@ -22,6 +29,19 @@ async function sendQuantityList(phone: string): Promise<void> {
       id: opt.id.replace('qty_', 'sm_qty_'),
       title: opt.label,
     }))
+  )
+}
+
+async function sendNewMachineColorList(phone: string): Promise<void> {
+  await sendWhatsAppList(
+    phone,
+    NEW_MACHINE_COLOR_PROMPT,
+    'Select color',
+    NEW_MACHINE_COLOR_OPTIONS.map(option => ({
+      id: option.id,
+      title: option.title,
+    })),
+    'Colors'
   )
 }
 
@@ -65,6 +85,10 @@ export async function resumeSodamaxSessionFlow(
       const product = session.selected_item_id
         ? await findSodamaxProductById(session.selected_item_id)
         : null
+      if (product && session.selected_item_id && (await isNewMachineProductId(session.selected_item_id))) {
+        await sendNewMachineColorList(phone)
+        break
+      }
       const index = session.quantity ?? 0
       if (product && product.colors[index]) {
         await sendColorPrompt(phone, product, index)
@@ -115,6 +139,15 @@ export async function resumeSodamaxSessionFlow(
       } else {
         await sendWhatsAppText(phone, 'What is your full name?')
       }
+      break
+
+    case 'awaiting_web_checkout':
+      await sendWhatsAppCtaUrl(
+        phone,
+        WEB_CHECKOUT_MESSAGE,
+        WEB_CHECKOUT_CTA_LABEL,
+        buildOrderPlatformUrl(phone, session.customer_name)
+      )
       break
 
     case 'awaiting_confirm': {

@@ -18,7 +18,7 @@ export function handleOptions(req: Request) {
 }
 
 export function getServiceClient(): SupabaseClient {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseUrl = Deno.env.get('NEXT_PUBLIC_SUPABASE_URL')
   const serviceKey =
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY')
 

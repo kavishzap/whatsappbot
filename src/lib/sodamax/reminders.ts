@@ -1,10 +1,8 @@
 import type { SodamaxSession } from './types'
-import { isReminderEligible as isSparkReminderEligible, isRegionStepComplete } from '@/lib/spark/types'
+import { isReminderEligible as isSparkReminderEligible } from '@/lib/spark/types'
 import type { WhatsAppSession } from '@/lib/spark/types'
 
-/** Same reminder rules as Spark — stops after region is selected or 3 reminders in 24h. */
+/** Reminders only while an order flow is in progress — stops when session returns to idle. */
 export function isSodamaxReminderEligible(session: SodamaxSession): boolean {
   return isSparkReminderEligible(session as unknown as WhatsAppSession)
 }
-
-export { isRegionStepComplete }

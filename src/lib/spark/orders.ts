@@ -1,5 +1,6 @@
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { getCurrentWhatsAppLine } from '@/lib/whatsapp-line'
+import type { WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 
 export type OrderLineItem = {
@@ -34,6 +35,54 @@ interface CreatedOrder {
 
 function resolveCompany(company?: WhatsAppCompany): WhatsAppCompany {
   return company ?? getCurrentWhatsAppLine()
+}
+
+export function normalizeWhatsAppPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('230')) return digits
+  if (digits.startsWith('0')) return `230${digits.slice(1)}`
+  return `230${digits}`
+}
+
+export async function getDraftOrderByRef(
+  orderRef: string,
+  phone: string,
+  company?: WhatsAppCompany
+): Promise<WhatsAppBotOrder | null> {
+  try {
+    const result = await invokeEdgeFunction<WhatsAppBotOrder | null>('whatsapp-bot-orders', {
+      query: {
+        company: resolveCompany(company),
+        order_ref: orderRef.trim(),
+        phone: normalizeWhatsAppPhone(phone),
+      },
+    })
+
+    return result.data ?? null
+  } catch (err) {
+    console.error('getDraftOrderByRef error:', err)
+    return null
+  }
+}
+
+export async function getDraftOrderById(
+  orderId: string,
+  company?: WhatsAppCompany
+): Promise<WhatsAppBotOrder | null> {
+  try {
+    const result = await invokeEdgeFunction<WhatsAppBotOrder | null>('whatsapp-bot-orders', {
+      query: {
+        company: resolveCompany(company),
+        id: orderId.trim(),
+      },
+    })
+
+    return result.data ?? null
+  } catch (err) {
+    console.error('getDraftOrderById error:', err)
+    return null
+  }
 }
 
 export async function createDraftOrder(

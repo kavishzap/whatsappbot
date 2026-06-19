@@ -49,6 +49,14 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('230')) return digits
+  if (digits.startsWith('0')) return `230${digits.slice(1)}`
+  return `230${digits}`
+}
+
 function normalizeItems(value: unknown): OrderItemInput[] {
   if (!Array.isArray(value)) return []
 
@@ -103,6 +111,83 @@ Deno.serve(async (req) => {
           { success: false, error: 'Missing or invalid company (spark|sodamax)' },
           400
         )
+      }
+
+      const orderRef = url.searchParams.get('order_ref')?.trim()
+      const lookupPhone = url.searchParams.get('phone')?.trim()
+
+      if (orderRef && lookupPhone) {
+        const normalizedPhone = normalizePhone(lookupPhone)
+
+        const { data, error } = await supabase
+          .from('whatsapp_bot_orders')
+          .select(`
+            *,
+            items:whatsapp_bot_orders_items (
+              id,
+              order_id,
+              item_id,
+              color_id,
+              product_name,
+              color_name,
+              color_hex,
+              quantity,
+              unit_price,
+              line_total,
+              sort_order,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('company', company)
+          .eq('order_ref', orderRef)
+          .eq('status', 'draft')
+          .maybeSingle()
+
+        if (error) throw error
+
+        if (!data) {
+          return jsonResponse({ success: true, data: null })
+        }
+
+        if (normalizePhone(String(data.customer_phone_number)) !== normalizedPhone) {
+          return jsonResponse(
+            { success: false, error: 'Order not found for this phone number' },
+            404
+          )
+        }
+
+        return jsonResponse({ success: true, data })
+      }
+
+      const orderId = url.searchParams.get('id')?.trim()
+      if (orderId) {
+        const { data, error } = await supabase
+          .from('whatsapp_bot_orders')
+          .select(`
+            *,
+            items:whatsapp_bot_orders_items (
+              id,
+              order_id,
+              item_id,
+              color_id,
+              product_name,
+              color_name,
+              color_hex,
+              quantity,
+              unit_price,
+              line_total,
+              sort_order,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('company', company)
+          .eq('id', orderId)
+          .maybeSingle()
+
+        if (error) throw error
+        return jsonResponse({ success: true, data: data ?? null })
       }
 
       const { data, error } = await supabase

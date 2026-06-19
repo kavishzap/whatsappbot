@@ -23,6 +23,7 @@ import { useDashboardHeaderActions } from '@/components/dashboard/dashboard-head
 import {
   DEFAULT_ORDER_DATE_FILTER,
   filterOrdersByDate,
+  isOrderDateFilterActive,
   toDateInputValue,
   type OrderDateFilterState,
 } from '@/lib/order-date-filter'
@@ -321,8 +322,10 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         searchFilter={matchesOrderSearch}
         onRowClick={setSelectedOrder}
         filterExtras={<OrderDateFilter value={dateFilter} onChange={setDateFilter} />}
+        extrasActive={isOrderDateFilterActive(dateFilter)}
         onClearFilters={() => {
           setDateFilter(DEFAULT_ORDER_DATE_FILTER)
+          setStatusFilter('')
         }}
         mobileCardRender={(order) => (
           <button

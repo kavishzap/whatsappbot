@@ -5,6 +5,7 @@ import { OrderDateFilter } from '@/components/orders/order-date-filter'
 import {
   DEFAULT_ORDER_DATE_FILTER,
   filterOrdersByDate,
+  isOrderDateFilterActive,
   toDateInputValue,
   type OrderDateFilterState,
 } from '@/lib/order-date-filter'
@@ -63,6 +64,13 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
     [pivotRows]
   )
 
+  const hasActiveFilters = isOrderDateFilterActive(dateFilter) || statusFilter !== ''
+
+  const clearFilters = () => {
+    setDateFilter(DEFAULT_ORDER_DATE_FILTER)
+    setStatusFilter('')
+  }
+
   if (!open) return null
 
   return (
@@ -116,6 +124,15 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
             ))}
           </select>
           <div className="flex items-center gap-2 sm:ml-auto">
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="btn-secondary !py-1.5 !px-3 text-sm"
+              >
+                Clear filters
+              </button>
+            )}
             <span className="text-sm text-ink-500 tabular-nums">
               {pivotRows.length} product{pivotRows.length === 1 ? '' : 's'} · {totalQty} units
             </span>
@@ -141,6 +158,15 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
             <div className="empty-state py-12">
               <p className="text-sm font-semibold text-ink-900">No items in this range</p>
               <p className="text-sm text-ink-500">Try a different date or status filter.</p>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-sm text-brand-600 hover:text-brand-700 font-semibold"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
             <table className="w-full text-sm">

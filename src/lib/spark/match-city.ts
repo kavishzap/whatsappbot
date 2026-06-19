@@ -11,7 +11,7 @@ interface MatchCityResponse {
   city_name: string | null
 }
 
-/** Match a free-text delivery address to a known city via whatsapp-cities (local fuzzy matcher). */
+/** Match a free-text delivery address to a known city via whatsapp-cities (fuzzy + optional LLM). */
 export async function matchCityFromAddress(
   company: WhatsAppCompany,
   address: string,
