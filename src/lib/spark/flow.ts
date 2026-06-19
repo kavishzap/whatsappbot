@@ -610,28 +610,41 @@ async function handleAddMoreProductSelection(
   await sendProductContent(phone, item)
 
   await sendQuantityListForSession(phone, session)
-  persistSession(phone, session, {
-    state: 'awaiting_quantity',
-    selected_item_id: item.id,
-  })
+  persistSession(
+    phone,
+    session,
+    {
+      state: 'awaiting_quantity',
+      selected_item_id: item.id,
+    },
+    { includeCart: true }
+  )
 }
 
 async function returnToOrderSummary(phone: string, session: WhatsAppSession): Promise<void> {
-  const merged = persistSession(phone, session, {
-    state: 'awaiting_confirm',
-    selected_item_id: null,
-    quantity: null,
-  })
+  const merged = await updateSession(
+    phone,
+    {
+      state: 'awaiting_confirm',
+      selected_item_id: null,
+      quantity: null,
+    },
+    { previous: session, includeCart: true }
+  )
   await sendOrderSummary(phone, merged)
 }
 
-async function startAddMoreProduct(phone: string): Promise<void> {
+async function startAddMoreProduct(phone: string, session: WhatsAppSession): Promise<void> {
   await sendProductList(phone, 0, { showBackToSummary: true })
-  void updateSession(phone, {
-    state: 'awaiting_add_more_product',
-    selected_item_id: null,
-    quantity: null,
-  }).catch(err => console.error('Session persist failed:', err))
+  void updateSession(
+    phone,
+    {
+      state: 'awaiting_add_more_product',
+      selected_item_id: null,
+      quantity: null,
+    },
+    { previous: session, includeCart: true }
+  ).catch(err => console.error('Session persist failed:', err))
 }
 
 async function askQuantity(phone: string, itemId: string | null): Promise<void> {
@@ -785,7 +798,8 @@ async function proceedToConfirmWithProfileName(
       city: deliveryAddress,
       customer_name: customerName,
     },
-    () => sendOrderSummary(phone, updatedSession)
+    () => sendOrderSummary(phone, updatedSession),
+    { includeCart: true }
   )
 
   void applyCityMatchToDraft(session.draft_order_id, deliveryAddress, session.region)
@@ -852,7 +866,7 @@ async function handleConfirm(
   input: MessageInput
 ): Promise<void> {
   if (isAddMoreProductAnswer(input)) {
-    await startAddMoreProduct(phone)
+    await startAddMoreProduct(phone, session)
     return
   }
 

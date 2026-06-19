@@ -39,14 +39,18 @@ function formatDbError(error: unknown): string {
 const CART_STATES = new Set([
   'awaiting_confirm',
   'awaiting_add_more_product',
+  'awaiting_quantity',
+  'awaiting_quantity_custom',
 ])
 
 function sessionNeedsCart(
   state: string | null | undefined,
-  includeCartParam: string | null
+  includeCartParam: string | null,
+  draftOrderId: string | null | undefined
 ): boolean {
   if (includeCartParam === '1') return true
   if (includeCartParam === '0') return false
+  if (draftOrderId) return true
   return CART_STATES.has(state ?? 'idle')
 }
 
@@ -197,7 +201,8 @@ Deno.serve(async (req) => {
         company === 'spark' &&
         sessionNeedsCart(
           typeof session?.state === 'string' ? session.state : null,
-          includeCartParam
+          includeCartParam,
+          typeof session?.draft_order_id === 'string' ? session.draft_order_id : null
         )
 
       const cartItems = needsCart
@@ -291,7 +296,10 @@ Deno.serve(async (req) => {
       }
 
       const reloadCart =
-        wroteCart || url.searchParams.get('include_cart') === '1'
+        sessionCompany === 'spark' &&
+        (wroteCart ||
+          url.searchParams.get('include_cart') === '1' ||
+          Boolean(session.draft_order_id))
 
       const cartItems =
         reloadCart && sessionCompany === 'spark'
