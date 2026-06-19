@@ -9,13 +9,16 @@ import {
   displayOrderCityMapping,
   displayOrderCityRegion,
   updateOrderStatus,
+  deleteBotOrder,
   type OrderStatus,
   type WhatsAppBotOrder,
 } from '@/lib/whatsapp-bot-orders'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import { useToast } from '@/components/ui/toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { OrderReceiptModal } from '@/components/orders/order-receipt-modal'
 import { OrderItemPivotModal } from '@/components/orders/order-item-pivot-modal'
+import { OrderActionsMenu } from '@/components/orders/order-actions-menu'
 import { OrderDateFilter } from '@/components/orders/order-date-filter'
 import { StatCard } from '@/components/ui/stat-card'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
@@ -75,6 +78,7 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
   const [selectedOrder, setSelectedOrder] = useState<WhatsAppBotOrder | null>(null)
   const [pivotOpen, setPivotOpen] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<WhatsAppBotOrder | null>(null)
   const exportCsvRef = useRef<(() => void) | null>(null)
 
   const headerActions = useMemo(
@@ -143,6 +147,22 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
     },
     [company, toast]
   )
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    setUpdatingId(deleteTarget.id)
+    try {
+      await deleteBotOrder(deleteTarget.id, company)
+      setOrders(prev => prev.filter(order => order.id !== deleteTarget.id))
+      setSelectedOrder(prev => (prev?.id === deleteTarget.id ? null : prev))
+      toast.success('Order deleted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete order')
+    } finally {
+      setUpdatingId(null)
+      setDeleteTarget(null)
+    }
+  }, [company, deleteTarget, toast])
 
   const ordersInDateRange = useMemo(
     () => filterOrdersByDate(orders, dateFilter),
@@ -270,15 +290,13 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         headerClassName: 'sr-only',
         sortValue: order => STATUS_SORT_ORDER[order.status],
         render: order => (
-          <div className="inline-flex justify-end" onClick={e => e.stopPropagation()}>
-            <OrderActions
-              order={order}
-              updating={updatingId === order.id}
-              onApprove={() => handleStatusChange(order, 'approved')}
-              onMarkPending={() => handleStatusChange(order, 'pending')}
-              onReject={() => handleStatusChange(order, 'rejected')}
-            />
-          </div>
+          <OrderActionsMenu
+            order={order}
+            updating={updatingId === order.id}
+            onApprove={() => handleStatusChange(order, 'approved')}
+            onReject={() => handleStatusChange(order, 'rejected')}
+            onDelete={() => setDeleteTarget(order)}
+          />
         ),
       },
     ],
@@ -289,6 +307,21 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full gap-3 overflow-hidden">
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete order?"
+        description={
+          deleteTarget
+            ? `${deleteTarget.order_ref} will be permanently removed. This cannot be undone.`
+            : 'This order will be permanently removed.'
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteTarget !== null && updatingId === deleteTarget.id}
+        onCancel={() => !updatingId && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
+
       <OrderReceiptModal
         order={selectedOrder}
         updating={selectedOrder ? updatingId === selectedOrder.id : false}
@@ -409,59 +442,6 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   }
   const labels: Record<OrderStatus, string> = ORDER_STATUS_LABELS
   return <span className={styles[status]}>{labels[status]}</span>
-}
-
-const actionBtnClass =
-  'btn-secondary !inline-flex !items-center !justify-center !py-1 !px-2 !text-xs !leading-none !rounded-md !gap-0 !min-h-0 !h-7'
-
-function OrderActions({
-  order,
-  updating,
-  onApprove,
-  onMarkPending,
-  onReject,
-}: {
-  order: WhatsAppBotOrder
-  updating: boolean
-  onApprove: () => void
-  onMarkPending: () => void
-  onReject: () => void
-}) {
-  if (order.status === 'approved') {
-    return <span className="text-xs font-medium text-brand-600 leading-none">Approved</span>
-  }
-
-  if (order.status === 'draft') {
-    return (
-      <div className="inline-flex flex-nowrap items-center gap-1">
-        <button type="button" disabled={updating} onClick={onReject} className={`${actionBtnClass} !text-red-600 !border-red-200 hover:!bg-red-50`}>
-          Reject
-        </button>
-        <button type="button" disabled={updating} onClick={onMarkPending} className={actionBtnClass}>
-          {updating ? '…' : 'Pending'}
-        </button>
-      </div>
-    )
-  }
-
-  if (order.status === 'rejected') {
-    return (
-      <button type="button" disabled={updating} onClick={onApprove} className={actionBtnClass}>
-        {updating ? '…' : 'Approve'}
-      </button>
-    )
-  }
-
-  return (
-    <div className="inline-flex flex-nowrap items-center gap-1">
-      <button type="button" disabled={updating} onClick={onApprove} className={actionBtnClass}>
-        {updating ? '…' : 'Approve'}
-      </button>
-      <button type="button" disabled={updating} onClick={onReject} className={`${actionBtnClass} !text-red-600 !border-red-200 hover:!bg-red-50`}>
-        Reject
-      </button>
-    </div>
-  )
 }
 
 function ExportIcon({ className }: { className?: string }) {

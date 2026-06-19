@@ -177,6 +177,17 @@ export async function updateOrderStatus(
   return normalizeOrder(json.data)
 }
 
+export async function deleteBotOrder(id: string, company: WhatsAppCompany): Promise<void> {
+  const res = await fetch(`/api/whatsapp-bot-orders?id=${id}&company=${company}`, {
+    method: 'DELETE',
+  })
+  const json: ApiResponse<unknown> = await res.json()
+
+  if (!res.ok || !json.success) {
+    throw new Error(json.error ?? 'Failed to delete order')
+  }
+}
+
 export function formatOrderDate(iso: string): string {
   return new Date(iso).toLocaleString('en-MU', {
     day: '2-digit',

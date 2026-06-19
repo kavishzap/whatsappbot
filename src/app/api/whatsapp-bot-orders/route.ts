@@ -65,3 +65,35 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
+
+export async function DELETE(request: Request) {
+  const user = await requireAuth()
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const id = new URL(request.url).searchParams.get('id')
+  const company = new URL(request.url).searchParams.get('company')
+
+  if (!id) {
+    return NextResponse.json({ success: false, error: 'Missing order id' }, { status: 400 })
+  }
+
+  if (company !== 'spark' && company !== 'sodamax') {
+    return NextResponse.json(
+      { success: false, error: 'Missing or invalid company (spark|sodamax)' },
+      { status: 400 }
+    )
+  }
+
+  try {
+    const result = await invokeEdgeFunction('whatsapp-bot-orders', {
+      method: 'DELETE',
+      query: { id, company },
+    })
+    return NextResponse.json({ success: true, message: result.message })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+}

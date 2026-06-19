@@ -533,6 +533,32 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, data: fullOrder })
     }
 
+    if (req.method === 'DELETE') {
+      const id = url.searchParams.get('id')?.trim()
+      const company = parseCompany(url.searchParams.get('company'))
+
+      if (!id) {
+        return jsonResponse({ success: false, error: 'Missing order id' }, 400)
+      }
+
+      const { error: itemsError } = await supabase
+        .from('whatsapp_bot_orders_items')
+        .delete()
+        .eq('order_id', id)
+
+      if (itemsError) throw itemsError
+
+      let deleteQuery = supabase.from('whatsapp_bot_orders').delete().eq('id', id)
+      if (company) {
+        deleteQuery = deleteQuery.eq('company', company)
+      }
+
+      const { error: deleteError } = await deleteQuery
+      if (deleteError) throw deleteError
+
+      return jsonResponse({ success: true, message: 'Order deleted successfully' })
+    }
+
     return jsonResponse({ success: false, error: 'Method not allowed' }, 405)
   } catch (error) {
     console.error('whatsapp-bot-orders error:', error)
