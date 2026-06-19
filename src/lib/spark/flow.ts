@@ -400,7 +400,8 @@ async function proceedAfterQuantity(
     return
   }
 
-  if (isAddMoreCheckoutReady(session)) {
+  // Draft already exists → add-more loop (append to same order, not a new draft).
+  if (session.draft_order_id) {
     await appendCartItemAndUpdateDraft(phone, session, qty, item)
     return
   }
@@ -469,15 +470,19 @@ async function proceedAfterQuantityWithDraft(
   }
 
   await sendDeliveryAddressPrompt(phone)
-  persistSession(phone, session, {
-    state: 'awaiting_delivery_address',
-    quantity: qty,
-    total,
-    cart_items: cartItems,
-    draft_order_id: draftResult.orderId,
-    city: null,
-    ...(customerName ? { customer_name: customerName } : {}),
-  }, { includeCart: true })
+  await updateSession(
+    phone,
+    {
+      state: 'awaiting_delivery_address',
+      quantity: qty,
+      total,
+      cart_items: cartItems,
+      draft_order_id: draftResult.orderId,
+      city: null,
+      ...(customerName ? { customer_name: customerName } : {}),
+    },
+    { previous: session, includeCart: true }
+  )
 }
 
 async function appendCartItemAndUpdateDraft(
@@ -532,9 +537,9 @@ async function appendCartItemAndUpdateDraft(
     quantity: null,
   })
 
-  await replyThenPersist(
+  await sendOrderSummary(phone, mergedSession)
+  await updateSession(
     phone,
-    session,
     {
       state: 'awaiting_confirm',
       cart_items: cartItems,
@@ -542,8 +547,7 @@ async function appendCartItemAndUpdateDraft(
       selected_item_id: null,
       quantity: null,
     },
-    () => sendOrderSummary(phone, mergedSession),
-    { includeCart: true }
+    { previous: session, includeCart: true }
   )
 }
 
@@ -610,14 +614,13 @@ async function handleAddMoreProductSelection(
   await sendProductContent(phone, item)
 
   await sendQuantityListForSession(phone, session)
-  persistSession(
+  await updateSession(
     phone,
-    session,
     {
       state: 'awaiting_quantity',
       selected_item_id: item.id,
     },
-    { includeCart: true }
+    { previous: session, includeCart: true }
   )
 }
 
@@ -790,16 +793,15 @@ async function proceedToConfirmWithProfileName(
     customer_name: customerName,
   })
 
-  await replyThenPersist(
+  await sendOrderSummary(phone, updatedSession)
+  await updateSession(
     phone,
-    session,
     {
       state: 'awaiting_confirm',
       city: deliveryAddress,
       customer_name: customerName,
     },
-    () => sendOrderSummary(phone, updatedSession),
-    { includeCart: true }
+    { previous: session, includeCart: true }
   )
 
   void applyCityMatchToDraft(session.draft_order_id, deliveryAddress, session.region)
@@ -846,17 +848,16 @@ async function handleRemoveLastItem(phone: string, session: WhatsAppSession): Pr
     quantity: null,
   })
 
-  await replyThenPersist(
+  await sendOrderSummary(phone, mergedSession)
+  await updateSession(
     phone,
-    session,
     {
       cart_items: nextCart,
       total,
       selected_item_id: null,
       quantity: null,
     },
-    () => sendOrderSummary(phone, mergedSession),
-    { includeCart: true }
+    { previous: session, includeCart: true }
   )
 }
 

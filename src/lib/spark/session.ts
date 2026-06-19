@@ -1,5 +1,6 @@
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { fetchSession, saveSession, clearSession, mergeSessionWrite } from './session-client'
+import { normalizeCartItems } from './cart'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import type { ChatState, WhatsAppSession } from './types'
 
@@ -35,7 +36,7 @@ function normalizeSession(raw: WhatsAppSession): WhatsAppSession {
     company: raw.company ?? SPARK_COMPANY,
     reminder_count: raw.reminder_count ?? 0,
     draft_order_id: raw.draft_order_id ?? null,
-    cart_items: Array.isArray(raw.cart_items) ? raw.cart_items : [],
+    cart_items: normalizeCartItems(raw.cart_items),
     region: raw.region ?? null,
     last_inbound_at: raw.last_inbound_at ?? null,
     last_reminder_at: raw.last_reminder_at ?? null,
@@ -46,7 +47,17 @@ function normalizeSession(raw: WhatsAppSession): WhatsAppSession {
 export async function loadSession(phone: string): Promise<WhatsAppSession> {
   try {
     const data = await fetchSession<WhatsAppSession>(SPARK_COMPANY, phone, { touch: true })
-    return normalizeSession(data)
+    let normalized = normalizeSession(data)
+
+    // Belt-and-suspenders: reload cart when a draft exists but cart rows were omitted.
+    if (normalized.draft_order_id && normalized.cart_items.length === 0) {
+      const refetch = await fetchSession<WhatsAppSession>(SPARK_COMPANY, phone, {
+        includeCart: true,
+      })
+      normalized = normalizeSession(refetch)
+    }
+
+    return normalized
   } catch (err) {
     console.error('loadSession error:', err)
     return { phone, ...DEFAULT_SESSION, updated_at: new Date().toISOString() }

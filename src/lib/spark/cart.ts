@@ -19,6 +19,45 @@ export function sessionCartRow(
   return item ? { item_id: itemId, quantity, item } : { item_id: itemId, quantity }
 }
 
+function parseItemPrice(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Map Supabase cart rows (with joined item) into in-memory session cart lines. */
+export function normalizeCartItems(raw: unknown): SessionCartItem[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((entry): SessionCartItem | null => {
+      if (!entry || typeof entry !== 'object') return null
+      const row = entry as Record<string, unknown>
+      const itemId = String(row.item_id ?? '').trim()
+      if (!itemId) return null
+
+      const embedded = row.item as Record<string, unknown> | null | undefined
+      const item =
+        embedded && typeof embedded === 'object'
+          ? {
+              id: String(embedded.id ?? itemId),
+              product_name: (embedded.product_name as string | null) ?? null,
+              price:
+                parseItemPrice(embedded.price) ?? parseItemPrice(embedded.price_amount),
+              company: embedded.company as BotItem['company'],
+            }
+          : undefined
+
+      return {
+        item_id: itemId,
+        color_id: (row.color_id as string | null) ?? null,
+        quantity: Math.max(1, Number(row.quantity ?? 1) || 1),
+        ...(item ? { item } : {}),
+      }
+    })
+    .filter((row): row is SessionCartItem => row !== null)
+}
+
 function lineFromEmbeddedItem(
   item: BotItem,
   itemId: string,
