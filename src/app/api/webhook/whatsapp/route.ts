@@ -96,10 +96,14 @@ export async function POST(request: Request) {
       ? () => handleSodamaxMessage(message)
       : () => handleChatbotMessage(message)
 
-  runWithWhatsAppLine(line, () => {
-    handler().catch(async error => {
+  // Must await on serverless (Netlify): returning 200 before the handler finishes lets
+  // the runtime shut down and drop in-flight WhatsApp replies.
+  await runWithWhatsAppLine(line, async () => {
+    try {
+      await handler()
+    } catch (error) {
       if (isWhatsAppAuthError(error)) {
-        console.error('WhatsApp auth error:', error.message)
+        console.error('WhatsApp auth error:', (error as Error).message)
         return
       }
 
@@ -112,7 +116,7 @@ export async function POST(request: Request) {
         supportUrl: isSodamax ? SODAMAX_SUPPORT_WHATSAPP_URL : SUPPORT_WHATSAPP_URL,
         logLabel: isSodamax ? 'SodaMax webhook' : 'Spark webhook',
       })
-    })
+    }
   })
 
   return new Response('OK', { status: 200 })
