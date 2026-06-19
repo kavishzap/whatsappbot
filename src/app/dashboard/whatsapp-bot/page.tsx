@@ -8,6 +8,8 @@ import {
   updateBotItem,
   deleteBotItem,
   toImageSrc,
+  sortBotItemsByOrder,
+  reorderBotItems,
   type WhatsAppBotItem,
   type WhatsAppBotItemSummary,
 } from '@/lib/whatsapp-bot-items'
@@ -15,11 +17,13 @@ import { getBotItemErrorMessage, validateBotItemRow } from '@/lib/error-messages
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ProductDetailModal, type ProductDetailRow } from '@/components/whatsapp-bot/product-detail-modal'
+import { ProductDragHandle } from '@/components/whatsapp-bot/product-drag-handle'
 import { StatCard } from '@/components/ui/stat-card'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
 
 interface BotRow {
   id: string
+  sort_order: number
   productName: string
   price: string
   adLink: string
@@ -31,7 +35,7 @@ interface BotRow {
 }
 
 const GRID_COLS =
-  '28px minmax(120px,1fr) 88px minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
+  '52px minmax(120px,1fr) 88px minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
 
 function createEmptyRow(): ProductDetailRow {
   return {
@@ -52,6 +56,7 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
   const hasImage = 'has_image' in item ? item.has_image : Boolean(imageBase64)
   return {
     id: item.id,
+    sort_order: item.sort_order ?? 0,
     productName: item.product_name ?? '',
     price: item.price != null ? String(item.price) : '',
     adLink: item.ad_link ?? '',
@@ -93,6 +98,7 @@ export default function WhatsAppBotPage() {
   const [modalSaving, setModalSaving] = useState(false)
   const [modalRow, setModalRow] = useState<ProductDetailRow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BotRow | null>(null)
 
   const stats = useMemo(() => {
@@ -105,7 +111,7 @@ export default function WhatsAppBotPage() {
     setLoading(true)
     try {
       const items = await fetchBotItems('spark')
-      setRows(items.map(itemToRow))
+      setRows(sortBotItemsByOrder(items.map(itemToRow)))
     } catch (err) {
       toastRef.current.error(getBotItemErrorMessage(err))
       setRows([])
@@ -157,11 +163,13 @@ export default function WhatsAppBotPage() {
     try {
       if (modalRow.isNew) {
         const created = await createBotItem('spark', payload)
-        setRows(prev => [...prev, itemToRow(created)])
+        setRows(prev => sortBotItemsByOrder([...prev, itemToRow(created)]))
         toast.success('Product added')
       } else {
         const updated = await updateBotItem('spark', modalRow.id, payload)
-        setRows(prev => prev.map(r => (r.id === updated.id ? itemToRow(updated) : r)))
+        setRows(prev =>
+          sortBotItemsByOrder(prev.map(r => (r.id === updated.id ? itemToRow(updated) : r)))
+        )
         toast.success('Product saved')
       }
       setModalRow(null)
@@ -199,16 +207,35 @@ export default function WhatsAppBotPage() {
     }
   }
 
+  const handleReorder = useCallback(
+    async (orderedRows: BotRow[]) => {
+      const withOrder = orderedRows.map((row, index) => ({ ...row, sort_order: index + 1 }))
+      const previousRows = rows
+      setRows(withOrder)
+      setReorderingId('bulk')
+      try {
+        await reorderBotItems(
+          'spark',
+          withOrder.map(row => row.id)
+        )
+      } catch (err) {
+        setRows(previousRows)
+        toast.error(getBotItemErrorMessage(err))
+      } finally {
+        setReorderingId(null)
+      }
+    },
+    [rows, toast]
+  )
+
   const columns: DynamicTableColumn<BotRow>[] = useMemo(
     () => [
       {
-        key: 'index',
-        header: '#',
+        key: 'order',
+        header: 'Order',
         headerClassName: 'text-center',
         cellClassName: 'text-center',
-        render: (_row, index) => (
-          <span className="text-xs font-semibold text-ink-400 tabular-nums">{index + 1}</span>
-        ),
+        render: row => <ProductDragHandle rowId={row.id} sortOrder={row.sort_order} />,
       },
       {
         key: 'name',
@@ -337,16 +364,24 @@ export default function WhatsAppBotPage() {
         variant="grid"
         gridTemplateColumns={GRID_COLS}
         minWidth="960px"
+        defaultPageSize={100}
         searchPlaceholder="Search product, link, description…"
         searchFilter={matchesProductSearch}
         onRowClick={openEditModal}
+        rowReorder={{
+          rowId: row => row.id,
+          onReorder: handleReorder,
+          disabled: reorderingId !== null,
+        }}
         mobileCardRender={row => (
-          <button
-            type="button"
-            onClick={() => openEditModal(row)}
-            className="w-full text-left px-3 py-3.5 table-row-hover"
-          >
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 px-3 py-3.5">
+            <ProductDragHandle rowId={row.id} sortOrder={row.sort_order} />
+            <button
+              type="button"
+              onClick={() => openEditModal(row)}
+              className="flex-1 min-w-0 text-left table-row-hover rounded-lg -my-1 py-1"
+            >
+              <div className="flex items-center gap-3 min-w-0">
               {row.imagePreview ? (
                 <img
                   src={row.imagePreview}
@@ -368,7 +403,8 @@ export default function WhatsAppBotPage() {
               </div>
               <ChevronIcon className="w-4 h-4 text-ink-300 shrink-0" />
             </div>
-          </button>
+            </button>
+          </div>
         )}
         toolbar={
           <button type="button" onClick={openAddModal} disabled={loading} className="btn-primary w-full sm:w-auto">

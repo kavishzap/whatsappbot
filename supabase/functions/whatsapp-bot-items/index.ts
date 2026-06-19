@@ -1,7 +1,7 @@
 import { getServiceClient, handleOptions, jsonResponse } from '../_shared/http.ts'
 
 const LIST_COLUMNS =
-  'id, ad_link, product_name, price, description, company, created_at, updated_at'
+  'id, ad_link, product_name, price, description, company, sort_order, created_at, updated_at'
 const COLOR_COLUMNS = 'id, color_name, color_hex, sort_order'
 
 interface ColorInput {
@@ -50,6 +50,22 @@ async function syncItemColors(
   )
 
   if (insertError) throw insertError
+}
+
+async function nextSortOrder(
+  supabase: ReturnType<typeof getServiceClient>,
+  company: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('whatsapp_bot_items')
+    .select('sort_order')
+    .eq('company', company)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return (data?.sort_order ?? 0) + 1
 }
 
 async function fetchItemWithColors(
@@ -101,7 +117,8 @@ Deno.serve(async (req) => {
         .from('whatsapp_bot_items')
         .select(`${LIST_COLUMNS}, image_base64, colors:whatsapp_bot_item_colors(${COLOR_COLUMNS})`)
         .eq('company', company)
-        .order('created_at', { ascending: false })
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true })
       if (error) throw error
 
       const items = (data ?? []).map(({ image_base64, colors, ...item }) => ({
@@ -119,16 +136,19 @@ Deno.serve(async (req) => {
       const body = await req.json()
       const itemCompany = parseCompany(body.company) ?? 'spark'
       const colors = normalizeColors(body.colors)
+      const sortOrder =
+        body.sort_order != null ? Number(body.sort_order) : await nextSortOrder(supabase, itemCompany)
 
       const { data, error } = await supabase
         .from('whatsapp_bot_items')
         .insert({
-          ad_link: body.ad_link ?? null,
+          ad_link: body.ad_link?.trim() || null,
           product_name: body.product_name ?? body.name ?? null,
           price: body.price != null ? String(body.price) : null,
           image_base64: body.image_base64 ?? null,
           description: body.description ?? '',
           company: itemCompany,
+          sort_order: sortOrder,
         })
         .select('id')
         .single()
@@ -149,12 +169,13 @@ Deno.serve(async (req) => {
       const colors = body.colors !== undefined ? normalizeColors(body.colors) : undefined
 
       const updates: Record<string, unknown> = {}
-      if (body.ad_link !== undefined) updates.ad_link = body.ad_link
+      if (body.ad_link !== undefined) updates.ad_link = body.ad_link?.trim() || null
       if (body.product_name !== undefined) updates.product_name = body.product_name
       if (body.name !== undefined) updates.product_name = body.name
       if (body.price !== undefined) updates.price = body.price != null ? String(body.price) : null
       if (body.image_base64 !== undefined) updates.image_base64 = body.image_base64
       if (body.description !== undefined) updates.description = body.description
+      if (body.sort_order !== undefined) updates.sort_order = Number(body.sort_order)
       if (body.company !== undefined) {
         const itemCompany = parseCompany(body.company)
         if (itemCompany) updates.company = itemCompany

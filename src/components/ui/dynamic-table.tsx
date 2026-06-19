@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import { downloadCsvRows, type CsvColumn } from '@/lib/export-csv'
+import { RowReorderProvider } from '@/components/ui/row-reorder-context'
 import { TablePagination } from './table-pagination'
 
 export type SortDirection = 'asc' | 'desc'
@@ -34,6 +35,12 @@ export type DynamicTableFilter<T> = {
   match: (row: T, value: string) => boolean
 }
 
+export type RowReorderConfig<T> = {
+  rowId: (row: T) => string
+  onReorder: (rows: T[]) => void | Promise<void>
+  disabled?: boolean
+}
+
 interface DynamicTableProps<T> {
   data: T[]
   columns: DynamicTableColumn<T>[]
@@ -48,6 +55,7 @@ interface DynamicTableProps<T> {
   onClearFilters?: () => void
   toolbar?: ReactNode
   onRowClick?: (row: T) => void
+  rowReorder?: RowReorderConfig<T>
   emptyState?: ReactNode
   defaultPageSize?: number
   defaultSort?: { key: string; direction: SortDirection }
@@ -228,6 +236,7 @@ export function DynamicTable<T>({
   onClearFilters,
   toolbar,
   onRowClick,
+  rowReorder,
   emptyState,
   defaultPageSize = 10,
   defaultSort,
@@ -245,6 +254,8 @@ export function DynamicTable<T>({
   const [pageSize, setPageSize] = useState(defaultPageSize)
   const [sortKey, setSortKey] = useState<string | null>(defaultSort?.key ?? null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSort?.direction ?? 'asc')
+  const [dragRowId, setDragRowId] = useState<string | null>(null)
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null)
 
   const sortColumn = useMemo(
     () => columns.find(col => col.key === sortKey && col.sortValue),
@@ -330,6 +341,89 @@ export function DynamicTable<T>({
     setSortDirection('asc')
   }
 
+  const reorderDisabled =
+    Boolean(rowReorder?.disabled) || Boolean(searchQuery.trim()) || Boolean(sortColumn)
+
+  const handleRowDragStart = useCallback(
+    (event: DragEvent, rowId: string) => {
+      if (!rowReorder || reorderDisabled) return
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', rowId)
+      setDragRowId(rowId)
+    },
+    [rowReorder, reorderDisabled]
+  )
+
+  const handleRowDragEnd = useCallback(() => {
+    setDragRowId(null)
+    setDragOverRowId(null)
+  }, [])
+
+  const handleRowDragOver = useCallback(
+    (event: DragEvent, rowId: string) => {
+      if (!rowReorder || reorderDisabled || !dragRowId || dragRowId === rowId) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      setDragOverRowId(rowId)
+    },
+    [rowReorder, reorderDisabled, dragRowId]
+  )
+
+  const handleRowDrop = useCallback(
+    (event: DragEvent, targetRowId: string) => {
+      if (!rowReorder || reorderDisabled) return
+      event.preventDefault()
+      const fromRowId = event.dataTransfer.getData('text/plain') || dragRowId
+      setDragRowId(null)
+      setDragOverRowId(null)
+      if (!fromRowId || fromRowId === targetRowId) return
+
+      const fromIndex = sortedData.findIndex(row => rowReorder.rowId(row) === fromRowId)
+      const toIndex = sortedData.findIndex(row => rowReorder.rowId(row) === targetRowId)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return
+
+      const next = [...sortedData]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      void rowReorder.onReorder(next)
+    },
+    [rowReorder, reorderDisabled, dragRowId, sortedData]
+  )
+
+  const rowReorderContextValue = useMemo(
+    () =>
+      rowReorder
+        ? {
+            dragRowId,
+            dragOverRowId,
+            disabled: reorderDisabled,
+            onDragStart: handleRowDragStart,
+            onDragEnd: handleRowDragEnd,
+          }
+        : null,
+    [rowReorder, dragRowId, dragOverRowId, reorderDisabled, handleRowDragStart, handleRowDragEnd]
+  )
+
+  const getRowDropProps = (row: T) => {
+    if (!rowReorder) return {}
+    const id = rowReorder.rowId(row)
+    return {
+      onDragOver: (event: DragEvent) => handleRowDragOver(event, id),
+      onDragLeave: () => setDragOverRowId(current => (current === id ? null : current)),
+      onDrop: (event: DragEvent) => handleRowDrop(event, id),
+    }
+  }
+
+  const getRowReorderClassName = (row: T) => {
+    if (!rowReorder) return ''
+    const id = rowReorder.rowId(row)
+    if (dragRowId === id) return 'opacity-40'
+    if (dragOverRowId === id && dragRowId && dragRowId !== id) {
+      return 'ring-2 ring-brand-400 ring-inset bg-brand-50/40'
+    }
+    return ''
+  }
+
   const renderHeaderCell = (col: DynamicTableColumn<T>) => {
     const align = col.align ?? 'left'
     const wrapperClass = headerJustifyClass(align)
@@ -355,6 +449,151 @@ export function DynamicTable<T>({
   const showMobileCards = Boolean(mobileCardRender)
   const desktopTableClass = showMobileCards ? 'hidden lg:block' : ''
   const tableDensityClass = fitScreen ? 'text-sm table-fixed border-separate border-spacing-0' : 'text-sm'
+
+  const renderTableContent = () => (
+    <>
+      {showMobileCards && mobileCardRender && (
+        <div className="lg:hidden divide-y divide-ink-100">
+          {paginatedData.map((row, i) => (
+            <div
+              key={rowKey(row)}
+              {...getRowDropProps(row)}
+              className={getRowReorderClassName(row)}
+            >
+              {mobileCardRender(row, rangeStart + i - 1)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {variant === 'grid' && gridTemplateColumns ? (
+        <div className={desktopTableClass} style={minWidth ? { minWidth } : undefined}>
+          <div
+            className="grid gap-2 px-3 py-2 panel-header items-center sticky top-0 z-10"
+            style={{ gridTemplateColumns }}
+          >
+            {columns.map(col => (
+              <span
+                key={col.key}
+                className={mergeClassNames(col.headerClassName, hideBelowClass(col.hideBelow, 'grid'))}
+              >
+                {renderHeaderCell(col)}
+              </span>
+            ))}
+          </div>
+          <div className="divide-y divide-ink-100">
+            {paginatedData.map((row, i) => (
+              <div
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={mergeClassNames(
+                  'grid gap-2 px-3 py-2.5 items-center text-sm',
+                  onRowClick ? 'table-row-hover' : undefined,
+                  getRowReorderClassName(row)
+                )}
+                style={{ gridTemplateColumns }}
+                {...getRowDropProps(row)}
+              >
+                {columns.map(col => (
+                  <div
+                    key={col.key}
+                    className={mergeClassNames(col.cellClassName, hideBelowClass(col.hideBelow, 'grid'))}
+                  >
+                    {col.render(row, rangeStart + i - 1)}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <table
+          className={`w-full ${tableDensityClass} ${desktopTableClass}`}
+          style={!fitScreen && minWidth ? { minWidth } : undefined}
+        >
+          {fitScreen && (
+            <colgroup>
+              {columns.map(col => (
+                <col
+                  key={col.key}
+                  style={
+                    col.shrinkCol
+                      ? { width: '1%' }
+                      : col.width
+                        ? { width: col.width }
+                        : undefined
+                  }
+                />
+              ))}
+            </colgroup>
+          )}
+          <thead className="sticky top-0 z-10 panel-header">
+            <tr className="align-middle">
+              {columns.map(col => (
+                <th
+                  key={col.key}
+                  style={
+                    !fitScreen && col.width
+                      ? { width: col.width }
+                      : col.shrinkCol
+                        ? { width: '1%' }
+                        : undefined
+                  }
+                  className={mergeClassNames(
+                    fitScreen ? 'px-3 py-2.5 text-xs' : 'px-3 py-2.5',
+                    'font-semibold uppercase tracking-wide align-middle whitespace-nowrap',
+                    columnAlignClass(col.align),
+                    col.shrinkCol ? 'whitespace-nowrap' : undefined,
+                    col.headerClassName,
+                    hideBelowClass(col.hideBelow, 'table')
+                  )}
+                >
+                  {renderHeaderCell(col)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {paginatedData.map((row, i) => (
+              <tr
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={mergeClassNames(
+                  'align-middle',
+                  onRowClick ? 'table-row-hover' : undefined,
+                  getRowReorderClassName(row)
+                )}
+                {...getRowDropProps(row)}
+              >
+                {columns.map(col => (
+                  <td
+                    key={col.key}
+                    style={
+                      !fitScreen && col.width
+                        ? { width: col.width }
+                        : col.shrinkCol
+                          ? { width: '1%' }
+                          : undefined
+                    }
+                    className={mergeClassNames(
+                      fitScreen ? 'px-3 py-2 align-middle' : 'px-3 py-2.5',
+                      columnAlignClass(col.align),
+                      col.shrinkCol ? 'whitespace-nowrap' : undefined,
+                      fitScreen && col.truncateCell ? 'max-w-0' : undefined,
+                      col.cellClassName,
+                      hideBelowClass(col.hideBelow, 'table')
+                    )}
+                  >
+                    {col.render(row, rangeStart + i - 1)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
 
   return (
     <div className={`panel flex flex-col flex-1 min-h-0 ${className}`}>
@@ -446,133 +685,12 @@ export function DynamicTable<T>({
           )
         ) : filteredData.length === 0 ? (
           <DefaultNoResults onClear={clearFilters} />
+        ) : rowReorderContextValue ? (
+          <RowReorderProvider value={rowReorderContextValue}>
+            {renderTableContent()}
+          </RowReorderProvider>
         ) : (
-          <>
-            {showMobileCards && mobileCardRender && (
-              <div className="lg:hidden divide-y divide-ink-100">
-                {paginatedData.map((row, i) => (
-                  <div key={rowKey(row)}>{mobileCardRender(row, rangeStart + i - 1)}</div>
-                ))}
-              </div>
-            )}
-
-            {variant === 'grid' && gridTemplateColumns ? (
-              <div className={desktopTableClass} style={minWidth ? { minWidth } : undefined}>
-                <div
-                  className="grid gap-2 px-3 py-2 panel-header items-center sticky top-0 z-10"
-                  style={{ gridTemplateColumns }}
-                >
-                  {columns.map(col => (
-                    <span
-                      key={col.key}
-                      className={mergeClassNames(col.headerClassName, hideBelowClass(col.hideBelow, 'grid'))}
-                    >
-                      {renderHeaderCell(col)}
-                    </span>
-                  ))}
-                </div>
-                <div className="divide-y divide-ink-100">
-                  {paginatedData.map((row, i) => (
-                    <div
-                      key={rowKey(row)}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      className={`grid gap-2 px-3 py-2.5 items-center text-sm ${onRowClick ? 'table-row-hover' : ''}`}
-                      style={{ gridTemplateColumns }}
-                    >
-                      {columns.map(col => (
-                        <div
-                          key={col.key}
-                          className={mergeClassNames(col.cellClassName, hideBelowClass(col.hideBelow, 'grid'))}
-                        >
-                          {col.render(row, rangeStart + i - 1)}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <table
-                className={`w-full ${tableDensityClass} ${desktopTableClass}`}
-                style={!fitScreen && minWidth ? { minWidth } : undefined}
-              >
-                {fitScreen && (
-                  <colgroup>
-                    {columns.map(col => (
-                      <col
-                        key={col.key}
-                        style={
-                          col.shrinkCol
-                            ? { width: '1%' }
-                            : col.width
-                              ? { width: col.width }
-                              : undefined
-                        }
-                      />
-                    ))}
-                  </colgroup>
-                )}
-                <thead className="sticky top-0 z-10 panel-header">
-                  <tr className="align-middle">
-                    {columns.map(col => (
-                      <th
-                        key={col.key}
-                        style={
-                          !fitScreen && col.width
-                            ? { width: col.width }
-                            : col.shrinkCol
-                              ? { width: '1%' }
-                              : undefined
-                        }
-                        className={mergeClassNames(
-                          fitScreen ? 'px-3 py-2.5 text-xs' : 'px-3 py-2.5',
-                          'font-semibold uppercase tracking-wide align-middle whitespace-nowrap',
-                          columnAlignClass(col.align),
-                          col.shrinkCol ? 'whitespace-nowrap' : undefined,
-                          col.headerClassName,
-                          hideBelowClass(col.hideBelow, 'table')
-                        )}
-                      >
-                        {renderHeaderCell(col)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-100">
-                  {paginatedData.map((row, i) => (
-                    <tr
-                      key={rowKey(row)}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      className={mergeClassNames('align-middle', onRowClick ? 'table-row-hover' : undefined)}
-                    >
-                      {columns.map(col => (
-                        <td
-                          key={col.key}
-                          style={
-                            !fitScreen && col.width
-                              ? { width: col.width }
-                              : col.shrinkCol
-                                ? { width: '1%' }
-                                : undefined
-                          }
-                          className={mergeClassNames(
-                            fitScreen ? 'px-3 py-2 align-middle' : 'px-3 py-2.5',
-                            columnAlignClass(col.align),
-                            col.shrinkCol ? 'whitespace-nowrap' : undefined,
-                            fitScreen && col.truncateCell ? 'max-w-0' : undefined,
-                            col.cellClassName,
-                            hideBelowClass(col.hideBelow, 'table')
-                          )}
-                        >
-                          {col.render(row, rangeStart + i - 1)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
+          renderTableContent()
         )}
       </div>
 

@@ -210,7 +210,7 @@ export function ProductDetailModal({
             <textarea
               value={row.description}
               onChange={e => onUpdate(row.id, { description: e.target.value })}
-              placeholder="Describe the product for customers…"
+              placeholder="Describe the product for customers… (optional)"
               rows={6}
               className="input-field resize-y min-h-[120px] h-auto py-2.5"
             />

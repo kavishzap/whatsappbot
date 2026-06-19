@@ -48,23 +48,18 @@ export function validateBotItemRow(row: {
     return 'Please enter a product name before saving.'
   }
 
-  if (!row.adLink.trim()) {
-    return 'Please enter an ad link before saving.'
-  }
-
-  try {
-    new URL(row.adLink.trim())
-  } catch {
-    return 'Please enter a valid ad link (e.g. https://example.com).'
+  const adLink = row.adLink.trim()
+  if (adLink) {
+    try {
+      new URL(adLink)
+    } catch {
+      return 'Please enter a valid ad link (e.g. https://example.com).'
+    }
   }
 
   const price = parseFloat(row.price)
   if (!row.price.trim() || Number.isNaN(price) || price <= 0) {
     return 'Please enter a valid price greater than 0.'
-  }
-
-  if (!row.description.trim()) {
-    return 'Please enter a description before saving.'
   }
 
   return null

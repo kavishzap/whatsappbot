@@ -14,6 +14,7 @@ export interface WhatsAppBotItemSummary {
   product_name: string
   price: number | null
   description: string
+  sort_order: number
   has_image: boolean
   colors?: BotItemColor[]
   created_at: string
@@ -31,7 +32,17 @@ export interface BotItemPayload {
   price: number
   image_base64: string | null
   description?: string
+  sort_order?: number
   colors?: BotItemColor[]
+}
+
+export interface BotItemOrderRow {
+  id: string
+  sort_order: number
+}
+
+export function sortBotItemsByOrder<T extends BotItemOrderRow>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id))
 }
 
 interface ApiResponse<T> {
@@ -48,7 +59,7 @@ function companyQuery(company: WhatsAppCompany): string {
 async function request<T>(
   method: string,
   company: WhatsAppCompany,
-  options?: { id?: string; body?: BotItemPayload }
+  options?: { id?: string; body?: Partial<BotItemPayload> & { company: WhatsAppCompany } }
 ): Promise<T> {
   const idPart = options?.id ? `&id=${options.id}` : ''
   const params = `?${companyQuery(company)}${idPart}`
@@ -94,6 +105,54 @@ export function updateBotItem(
   body: BotItemPayload
 ): Promise<WhatsAppBotItem> {
   return request<WhatsAppBotItem>('PUT', company, { id, body: { ...body, company } })
+}
+
+export function updateBotItemSortOrder(
+  company: WhatsAppCompany,
+  id: string,
+  sort_order: number
+): Promise<WhatsAppBotItemSummary> {
+  return request<WhatsAppBotItemSummary>('PUT', company, {
+    id,
+    body: { company, sort_order },
+  })
+}
+
+export async function reorderBotItems(
+  company: WhatsAppCompany,
+  orderedIds: string[]
+): Promise<void> {
+  await Promise.all(
+    orderedIds.map((id, index) => updateBotItemSortOrder(company, id, index + 1))
+  )
+}
+
+export async function moveBotItemOrder(
+  company: WhatsAppCompany,
+  rows: BotItemOrderRow[],
+  id: string,
+  direction: 'up' | 'down'
+): Promise<BotItemOrderRow[]> {
+  const sorted = sortBotItemsByOrder(rows)
+  const index = sorted.findIndex(row => row.id === id)
+  if (index < 0) return rows
+
+  const swapIndex = direction === 'up' ? index - 1 : index + 1
+  if (swapIndex < 0 || swapIndex >= sorted.length) return rows
+
+  const current = sorted[index]
+  const target = sorted[swapIndex]
+
+  await Promise.all([
+    updateBotItemSortOrder(company, current.id, target.sort_order),
+    updateBotItemSortOrder(company, target.id, current.sort_order),
+  ])
+
+  return rows.map(row => {
+    if (row.id === current.id) return { ...row, sort_order: target.sort_order }
+    if (row.id === target.id) return { ...row, sort_order: current.sort_order }
+    return row
+  })
 }
 
 export function deleteBotItem(company: WhatsAppCompany, id: string): Promise<void> {
