@@ -12,6 +12,12 @@ export const DEFAULT_ORDER_DATE_FILTER: OrderDateFilterState = {
   customTo: '',
 }
 
+export const DEFAULT_TABLE_DATE_FILTER: OrderDateFilterState = {
+  preset: 'today',
+  customFrom: '',
+  customTo: '',
+}
+
 export interface OrderDateRange {
   start: Date | null
   end: Date | null
@@ -100,12 +106,24 @@ export function filterOrdersByDate<T extends { created_at: string }>(
   orders: T[],
   state: OrderDateFilterState
 ): T[] {
-  if (state.preset === 'all') return orders
+  return filterByDateField(orders, state, order => order.created_at)
+}
+
+export function filterByDateField<T>(
+  items: T[],
+  state: OrderDateFilterState,
+  getDateValue: (item: T) => string | null | undefined
+): T[] {
+  if (state.preset === 'all') return items
 
   const range = resolveOrderDateRange(state)
-  if (state.preset === 'custom' && !range.start && !range.end) return orders
+  if (state.preset === 'custom' && !range.start && !range.end) return items
 
-  return orders.filter(order => orderMatchesDateRange(order.created_at, range))
+  return items.filter(item => {
+    const raw = getDateValue(item)
+    if (!raw) return false
+    return orderMatchesDateRange(raw, range)
+  })
 }
 
 export function isOrderDateFilterActive(state: OrderDateFilterState): boolean {

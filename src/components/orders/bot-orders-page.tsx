@@ -30,7 +30,7 @@ import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-t
 import { HoverTooltip } from '@/components/ui/hover-tooltip'
 import { useDashboardHeaderActions } from '@/components/dashboard/dashboard-header-context'
 import {
-  DEFAULT_ORDER_DATE_FILTER,
+  DEFAULT_TABLE_DATE_FILTER,
   filterOrdersByDate,
   isOrderDateFilterActive,
   toDateInputValue,
@@ -81,7 +81,7 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
   const [orders, setOrders] = useState<WhatsAppBotOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
-  const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_ORDER_DATE_FILTER)
+  const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
   const [selectedOrder, setSelectedOrder] = useState<WhatsAppBotOrder | null>(null)
   const [pivotOpen, setPivotOpen] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -436,7 +436,7 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         filterExtras={<OrderDateFilter value={dateFilter} onChange={setDateFilter} />}
         extrasActive={isOrderDateFilterActive(dateFilter)}
         onClearFilters={() => {
-          setDateFilter(DEFAULT_ORDER_DATE_FILTER)
+          setDateFilter(DEFAULT_TABLE_DATE_FILTER)
           setStatusFilter('')
         }}
         mobileCardRender={(order) => (

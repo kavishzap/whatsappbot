@@ -14,8 +14,15 @@ import {
 } from '@/lib/whatsapp-session-labels'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import { useToast } from '@/components/ui/toast'
+import { OrderDateFilter } from '@/components/orders/order-date-filter'
 import { CollapsibleKpiPanel } from '@/components/ui/collapsible-kpi-panel'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
+import {
+  DEFAULT_TABLE_DATE_FILTER,
+  filterByDateField,
+  isOrderDateFilterActive,
+  type OrderDateFilterState,
+} from '@/lib/order-date-filter'
 
 function matchesSessionSearch(session: WhatsAppBotSessionMessage, query: string): boolean {
   const q = query.trim().toLowerCase()
@@ -34,6 +41,10 @@ function followUpUrl(session: WhatsAppBotSessionMessage, company: WhatsAppCompan
   return sessionWhatsAppMessageUrl(session.phone, message)
 }
 
+function sessionActiveAt(session: WhatsAppBotSessionMessage): string {
+  return session.last_inbound_at ?? session.updated_at
+}
+
 interface BotMessagesPageProps {
   company: WhatsAppCompany
 }
@@ -45,6 +56,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
   const [sessions, setSessions] = useState<WhatsAppBotSessionMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [stateFilter, setStateFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
@@ -71,15 +83,20 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
     ]
   }, [sessions])
 
+  const sessionsInDateRange = useMemo(
+    () => filterByDateField(sessions, dateFilter, sessionActiveAt),
+    [sessions, dateFilter]
+  )
+
   const stats = useMemo(() => {
-    const withProduct = sessions.filter(session => session.selected_item_id).length
-    const uniquePhones = new Set(sessions.map(session => session.phone)).size
+    const withProduct = sessionsInDateRange.filter(session => session.selected_item_id).length
+    const uniquePhones = new Set(sessionsInDateRange.map(session => session.phone)).size
     return {
-      total: sessions.length,
+      total: sessionsInDateRange.length,
       uniquePhones,
       withProduct,
     }
-  }, [sessions])
+  }, [sessionsInDateRange])
 
   const columns: DynamicTableColumn<WhatsAppBotSessionMessage>[] = useMemo(
     () => [
@@ -171,7 +188,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
     <div className="flex flex-col flex-1 min-h-0 w-full gap-3 overflow-hidden">
       <CollapsibleKpiPanel
         title="Messages overview"
-        subtitle={`${brandLabel} · in-progress chats before draft order`}
+        subtitle={`${brandLabel} · filtered by date range`}
         items={[
           {
             label: 'Active sessions',
@@ -189,7 +206,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
       />
 
       <DynamicTable
-        data={sessions}
+        data={sessionsInDateRange}
         columns={columns}
         rowKey={session => session.phone}
         loading={loading}
@@ -197,6 +214,12 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
         searchFilter={matchesSessionSearch}
         defaultSort={{ key: 'last_active', direction: 'desc' }}
         fitScreen
+        filterExtras={<OrderDateFilter value={dateFilter} onChange={setDateFilter} />}
+        extrasActive={isOrderDateFilterActive(dateFilter)}
+        onClearFilters={() => {
+          setDateFilter(DEFAULT_TABLE_DATE_FILTER)
+          setStateFilter('')
+        }}
         filters={[
           {
             id: 'state-filter',
