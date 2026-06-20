@@ -254,6 +254,21 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         ),
       },
       {
+        key: 'zone',
+        header: 'Zone',
+        width: '7%',
+        truncateCell: true,
+        sortValue: order => displayOrderZoneName(order),
+        render: order => {
+          const zone = displayOrderZoneName(order)
+          return (
+            <span className="text-ink-600 truncate block" title={zone === '—' ? undefined : zone}>
+              {zone}
+            </span>
+          )
+        },
+      },
+      {
         key: 'phone',
         header: 'Phone Number',
         width: '9%',

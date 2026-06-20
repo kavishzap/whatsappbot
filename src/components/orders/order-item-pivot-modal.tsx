@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { OrderDateFilter } from '@/components/orders/order-date-filter'
 import {
-  DEFAULT_ORDER_DATE_FILTER,
+  DEFAULT_TABLE_DATE_FILTER,
   filterOrdersByDate,
   isOrderDateFilterActive,
   toDateInputValue,
@@ -33,7 +33,7 @@ const STATUS_OPTIONS: { value: '' | OrderStatus; label: string }[] = [
 ]
 
 export function OrderItemPivotModal({ open, orders, company, onClose }: OrderItemPivotModalProps) {
-  const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_ORDER_DATE_FILTER)
+  const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
   const [statusFilter, setStatusFilter] = useState<'' | OrderStatus>('')
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
   const hasActiveFilters = isOrderDateFilterActive(dateFilter) || statusFilter !== ''
 
   const clearFilters = () => {
-    setDateFilter(DEFAULT_ORDER_DATE_FILTER)
+    setDateFilter(DEFAULT_TABLE_DATE_FILTER)
     setStatusFilter('')
   }
 

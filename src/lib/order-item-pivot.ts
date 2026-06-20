@@ -1,7 +1,6 @@
 import {
   displayOrderAddress,
   displayOrderCity,
-  displayOrderCityRegion,
   displayOrderCustomerName,
   displayOrderZoneName,
   formatOrderDate,
@@ -27,13 +26,12 @@ export interface OrderExportLineRow {
   name: string
   address: string
   city: string
-  region: string
+  zone: string
   phone: string
   amount: string
   qty: string
   product: string
   note: string
-  zone: string
   status: string
   orderRef: string
 }
@@ -59,13 +57,12 @@ export function expandOrdersForExport(orders: WhatsAppBotOrder[]): OrderExportLi
     name: displayOrderCustomerName(order),
     address: displayOrderAddress(order),
     city: displayOrderCity(order),
-    region: displayOrderCityRegion(order),
+    zone: displayOrderZoneName(order),
     phone: order.customer_phone_number,
     amount: formatOrderTotal(Number(order.total)),
     qty: formatOrderQtyList(order),
     product: formatOrderProductsList(order),
     note: order.notes?.trim() || '—',
-    zone: displayOrderZoneName(order),
     status: ORDER_STATUS_LABELS[order.status],
     orderRef: order.order_ref,
   }))
@@ -77,13 +74,12 @@ export const ORDER_EXPORT_COLUMNS: CsvColumn<OrderExportLineRow>[] = [
   { header: 'Name', value: row => row.name },
   { header: 'Address', value: row => row.address },
   { header: 'City', value: row => row.city },
-  { header: 'Region', value: row => row.region },
+  { header: 'Zone', value: row => row.zone },
   { header: 'Phone Number', value: row => row.phone },
   { header: 'Amount', value: row => row.amount },
   { header: 'Qty', value: row => row.qty },
   { header: 'Product', value: row => row.product },
   { header: 'Note', value: row => row.note },
-  { header: 'Zone', value: row => row.zone },
   { header: 'Status', value: row => row.status },
   { header: 'Order Ref', value: row => row.orderRef },
 ]
