@@ -11,6 +11,7 @@ export type ChatState =
   | 'awaiting_region'
   | 'awaiting_delivery_address'
   | 'awaiting_customer_name'
+  | 'awaiting_notes'
   | 'awaiting_confirm'
 
 export interface SessionCartItem {
@@ -24,6 +25,7 @@ export interface BotItem {
   id: string
   company?: WhatsAppCompany
   ad_link: string | null
+  ad_link_2: string | null
   product_name: string | null
   price: number | null
   image_base64: string | null

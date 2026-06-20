@@ -1,7 +1,8 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getServiceClient, handleOptions, jsonResponse } from '../_shared/http.ts'
+import { normalizeWhatsAppPhone } from '../_shared/phone.ts'
 
-const VALID_STATUSES = ['draft', 'pending', 'approved', 'rejected'] as const
+const VALID_STATUSES = ['draft', 'complete', 'approved', 'rejected'] as const
 
 type Company = 'spark' | 'sodamax'
 
@@ -29,19 +30,36 @@ function formatOrderDate(date: Date): string {
   return `${year}${month}${day}`
 }
 
-async function generateOrderRef(supabase: SupabaseClient, company: Company): Promise<string> {
+async function generateOrderRef(
+  supabase: SupabaseClient,
+  company: Company,
+  attempt = 0
+): Promise<string> {
   const datePart = formatOrderDate(new Date())
   const prefix = company === 'sodamax' ? `SM-${datePart}-` : `ORD-${datePart}-`
 
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from('whatsapp_bot_orders')
-    .select('order_ref', { count: 'exact', head: true })
+    .select('order_ref')
     .eq('company', company)
     .like('order_ref', `${prefix}%`)
+    .order('order_ref', { ascending: false })
+    .limit(1)
 
   if (error) throw error
 
-  return `${prefix}${String((count ?? 0) + 1).padStart(3, '0')}`
+  let nextNum = 1
+  const latestRef = data?.[0]?.order_ref
+  if (typeof latestRef === 'string' && latestRef.startsWith(prefix)) {
+    const parsed = parseInt(latestRef.slice(prefix.length), 10)
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      nextNum = parsed + 1
+    }
+  }
+
+  const sequence = nextNum + attempt
+  const width = Math.max(3, String(sequence).length)
+  return `${prefix}${String(sequence).padStart(width, '0')}`
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -50,11 +68,7 @@ function toNumber(value: unknown, fallback = 0): number {
 }
 
 function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  if (digits.startsWith('230')) return digits
-  if (digits.startsWith('0')) return `230${digits.slice(1)}`
-  return `230${digits}`
+  return normalizeWhatsAppPhone(raw)
 }
 
 function normalizeItems(value: unknown): OrderItemInput[] {
@@ -236,7 +250,7 @@ Deno.serve(async (req) => {
         typeof body.status === 'string' &&
         VALID_STATUSES.includes(body.status as (typeof VALID_STATUSES)[number])
           ? body.status
-          : 'pending'
+          : 'complete'
 
       const isDraft = status === 'draft'
       const items = normalizeItems(body.items)
@@ -302,7 +316,7 @@ Deno.serve(async (req) => {
             }, 0)
 
       for (let attempt = 0; attempt < 10; attempt++) {
-        const order_ref = await generateOrderRef(supabase, company)
+        const order_ref = await generateOrderRef(supabase, company, attempt)
 
         const firstItem = items[0]
         const firstQuantity = toNumber(firstItem.quantity, 1)
@@ -322,6 +336,10 @@ Deno.serve(async (req) => {
 
         if (typeof body.city_id === 'string' && body.city_id.trim()) {
           orderInsert.city_id = body.city_id.trim()
+        }
+
+        if (typeof body.notes === 'string' && body.notes.trim()) {
+          orderInsert.notes = body.notes.trim()
         }
 
         const { data: order, error: orderError } = await supabase
@@ -386,6 +404,7 @@ Deno.serve(async (req) => {
         city_id?: string | null
         total?: number
         company?: string
+        notes?: string | null
         items?: unknown
       }
 
@@ -395,7 +414,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400)
       }
 
-      const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, items: rawItems } =
+      const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, notes, items: rawItems } =
         body
 
       if (!id) {
@@ -433,16 +452,17 @@ Deno.serve(async (req) => {
       }
 
       if (status) {
-        if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
+        const normalizedStatus = status === 'pending' ? 'complete' : status
+        if (!VALID_STATUSES.includes(normalizedStatus as (typeof VALID_STATUSES)[number])) {
           return jsonResponse({ success: false, error: 'Invalid status' }, 400)
         }
 
-        updates.status = status
+        updates.status = normalizedStatus
       }
 
       if (customer_name !== undefined) {
         const trimmed = String(customer_name).trim()
-        if (!trimmed && status === 'pending') {
+        if (!trimmed && (status === 'complete' || status === 'pending')) {
           return jsonResponse({ success: false, error: 'Invalid customer_name' }, 400)
         }
         updates.customer_name = trimmed || null
@@ -452,6 +472,10 @@ Deno.serve(async (req) => {
       if (city_id !== undefined) {
         updates.city_id =
           typeof city_id === 'string' && city_id.trim() ? city_id.trim() : null
+      }
+      if (notes !== undefined) {
+        updates.notes =
+          typeof notes === 'string' && notes.trim() ? notes.trim() : null
       }
 
       if (hasItemUpdates) {

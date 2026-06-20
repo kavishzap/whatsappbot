@@ -23,6 +23,14 @@ const DEFAULT_SESSION = {
 const REMINDER_GAP_HOURS = 8
 const REMINDER_WINDOW_HOURS = 24
 
+/** Sessions still in the funnel before a draft order is created. */
+const PRE_DRAFT_IGNORED_STATES = ['idle', 'awaiting_menu_selection']
+
+function parseListCompany(value: string | null): 'spark' | 'sodamax' | null {
+  if (value === 'spark' || value === 'sodamax') return value
+  return null
+}
+
 function parseCompany(value: string | null): string {
   if (value === 'sodamax') return 'sodamax'
   return 'spark'
@@ -154,6 +162,57 @@ Deno.serve(async (req) => {
       })
 
       return jsonResponse({ success: true, data: candidates })
+    }
+
+    if (req.method === 'GET' && list === 'pre_draft') {
+      const listCompanyFilter = parseListCompany(listCompany)
+      if (!listCompanyFilter) {
+        return jsonResponse(
+          { success: false, error: 'Missing or invalid list_company (spark|sodamax)' },
+          400
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('whatsapp_sessions')
+        .select(`
+          phone,
+          company,
+          state,
+          selected_item_id,
+          quantity,
+          region,
+          city,
+          customer_name,
+          total,
+          reminder_count,
+          last_inbound_at,
+          updated_at,
+          item:whatsapp_bot_items (
+            product_name
+          )
+        `)
+        .eq('company', listCompanyFilter)
+        .is('draft_order_id', null)
+        .not('state', 'in', `(${PRE_DRAFT_IGNORED_STATES.join(',')})`)
+        .order('updated_at', { ascending: false })
+
+      if (error) throw error
+
+      const rows = (data ?? []).map((row) => {
+        const item = row.item as { product_name?: string | null } | { product_name?: string | null }[] | null
+        const productName = Array.isArray(item)
+          ? item[0]?.product_name ?? null
+          : item?.product_name ?? null
+
+        const { item: _item, ...session } = row as Record<string, unknown>
+        return {
+          ...session,
+          product_name: productName,
+        }
+      })
+
+      return jsonResponse({ success: true, data: rows })
     }
 
     if (req.method === 'GET') {

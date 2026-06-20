@@ -2,6 +2,7 @@ import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { getCurrentWhatsAppLine } from '@/lib/whatsapp-line'
 import type { WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
+import { normalizeWhatsAppPhone } from '@/lib/phone'
 
 export type OrderLineItem = {
   item_id?: string | null
@@ -22,8 +23,9 @@ export interface OrderPayload {
   city_id?: string | null
   address: string
   total: number
+  notes?: string | null
   items: OrderLineItem[]
-  status?: 'draft' | 'pending'
+  status?: 'draft' | 'complete'
   company?: WhatsAppCompany
 }
 
@@ -37,13 +39,7 @@ function resolveCompany(company?: WhatsAppCompany): WhatsAppCompany {
   return company ?? getCurrentWhatsAppLine()
 }
 
-export function normalizeWhatsAppPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  if (digits.startsWith('230')) return digits
-  if (digits.startsWith('0')) return `230${digits.slice(1)}`
-  return `230${digits}`
-}
+export { normalizeWhatsAppPhone } from '@/lib/phone'
 
 export async function getDraftOrderByRef(
   orderRef: string,
@@ -125,6 +121,7 @@ export async function patchDraftOrder(
     address?: string
     customer_name?: string
     total?: number
+    notes?: string | null
     items?: OrderLineItem[]
     company?: WhatsAppCompany
   }
@@ -184,7 +181,7 @@ export async function completeDraftOrder(
       method: 'PATCH',
       body: {
         id: orderId,
-        status: 'pending',
+        status: 'complete',
         customer_name: payload.customer_name.trim(),
         company: resolveCompany(company),
       },
@@ -207,7 +204,7 @@ export async function saveOrder(
   try {
     const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
       method: 'POST',
-      body: { ...payload, company: resolveCompany(payload.company), status: 'pending' },
+      body: { ...payload, company: resolveCompany(payload.company), status: 'complete' },
     })
 
     return { success: true, orderRef: result.data?.order_ref }

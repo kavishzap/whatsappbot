@@ -19,10 +19,11 @@ const PRESET_OPTIONS: { value: OrderDatePreset; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ]
 
-const selectClassName = 'select-field min-w-[9.5rem]'
+const selectClassName =
+  'select-field min-w-0 w-[6.75rem] sm:min-w-[9.5rem] h-8 sm:h-10 text-xs sm:text-sm'
 
 const dateInputClassName =
-  'h-10 rounded-lg border border-ink-200 bg-white px-2.5 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-brand-500'
+  'h-8 sm:h-10 rounded-lg border border-ink-200 bg-white px-2 sm:px-2.5 text-xs sm:text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-brand-500'
 
 export function OrderDateFilter({ value, onChange }: OrderDateFilterProps) {
   const handlePresetChange = (preset: OrderDatePreset) => {
@@ -30,7 +31,7 @@ export function OrderDateFilter({ value, onChange }: OrderDateFilterProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
       <div className="flex items-center gap-1.5">
         <label htmlFor="order-date-preset" className="text-[10px] font-semibold text-ink-400 uppercase tracking-wide sr-only">
           Date range

@@ -1,6 +1,6 @@
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 
-export type OrderStatus = 'draft' | 'pending' | 'approved' | 'rejected'
+export type OrderStatus = 'draft' | 'complete' | 'approved' | 'rejected'
 
 export interface WhatsAppBotOrderItem {
   id: string
@@ -29,9 +29,11 @@ export interface WhatsAppBotOrder {
   /** Resolved from cities table when listing orders in the dashboard. */
   mapped_city_name?: string | null
   mapped_city_region?: string | null
+  mapped_zone_name?: string | null
   address: string
   total: number
   status: OrderStatus
+  notes: string | null
   items: WhatsAppBotOrderItem[]
   created_at: string
   updated_at?: string
@@ -47,11 +49,13 @@ interface CityRow {
   id: string
   name: string
   region: string
+  zone_name?: string | null
 }
 
 interface CachedCity {
   name: string
   region: string
+  zone_name: string
 }
 
 const cityCaches = new Map<WhatsAppCompany, Map<string, CachedCity>>()
@@ -67,6 +71,7 @@ function setCityCache(company: WhatsAppCompany, cities: CityRow[]): void {
           {
             name: city.name,
             region: city.region?.trim() || '',
+            zone_name: city.zone_name?.trim() || '',
           },
         ])
     )
@@ -86,6 +91,7 @@ function resolveMappedCity(order: WhatsAppBotOrder): CachedCity | null {
   return {
     name,
     region: order.mapped_city_region?.trim() || '',
+    zone_name: order.mapped_zone_name?.trim() || '',
   }
 }
 
@@ -102,6 +108,7 @@ function normalizeOrder(raw: WhatsAppBotOrder): WhatsAppBotOrder {
     ...raw,
     mapped_city_name: raw.mapped_city_name ?? null,
     mapped_city_region: raw.mapped_city_region ?? null,
+    mapped_zone_name: raw.mapped_zone_name ?? null,
   })
 
   return {
@@ -110,7 +117,9 @@ function normalizeOrder(raw: WhatsAppBotOrder): WhatsAppBotOrder {
     city_id: raw.city_id ?? null,
     mapped_city_name: mappedCity?.name ?? null,
     mapped_city_region: mappedCity?.region ?? null,
+    mapped_zone_name: mappedCity?.zone_name || null,
     status: normalizeOrderStatus(raw.status),
+    notes: raw.notes?.trim() || null,
     items: [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
   }
 }
@@ -135,7 +144,8 @@ export async function fetchBotOrders(company: WhatsAppCompany): Promise<WhatsApp
 export function normalizeOrderStatus(status: string | null | undefined): OrderStatus {
   if (status === 'draft') return 'draft'
   if (status === 'approved' || status === 'rejected') return status
-  return 'pending'
+  if (status === 'complete' || status === 'pending') return 'complete'
+  return 'complete'
 }
 
 export function displayOrderCustomerName(order: WhatsAppBotOrder): string {
@@ -144,12 +154,42 @@ export function displayOrderCustomerName(order: WhatsAppBotOrder): string {
   return name
 }
 
+export function displayOrderZoneName(order: WhatsAppBotOrder): string {
+  return order.mapped_zone_name?.trim() || '—'
+}
+
 export function displayOrderCityMapping(order: WhatsAppBotOrder): string {
   return order.mapped_city_name?.trim() || '—'
 }
 
 export function displayOrderCityRegion(order: WhatsAppBotOrder): string {
   return order.mapped_city_region?.trim() || '—'
+}
+
+export function displayOrderAddress(order: WhatsAppBotOrder): string {
+  const address = order.address?.trim()
+  if (address && address !== '—') return address
+  const city = order.city?.trim()
+  if (city && city !== '—') return city
+  return '—'
+}
+
+export function displayOrderCity(order: WhatsAppBotOrder): string {
+  return order.mapped_city_name?.trim() || '—'
+}
+
+export function formatOrderProductsList(order: WhatsAppBotOrder): string {
+  if (!order.items.length) return '—'
+  return order.items.map(formatOrderItemLabel).join('\n')
+}
+
+export function formatOrderQtyList(order: WhatsAppBotOrder): string {
+  if (!order.items.length) return '—'
+  return order.items.map(item => String(item.quantity)).join('\n')
+}
+
+export function formatOrderTotalQty(order: WhatsAppBotOrder): number {
+  return order.items.reduce((sum, item) => sum + item.quantity, 0)
 }
 
 export function formatOrderItemLabel(item: WhatsAppBotOrderItem): string {
@@ -189,13 +229,13 @@ export async function deleteBotOrder(id: string, company: WhatsAppCompany): Prom
 }
 
 export function formatOrderDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-MU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
 }
 
 export function formatOrderTotal(total: number): string {

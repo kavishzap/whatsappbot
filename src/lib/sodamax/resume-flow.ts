@@ -1,7 +1,19 @@
 import { sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList, sendWhatsAppCtaUrl } from '@/lib/whatsapp'
 import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
+import { getDraftOrderById } from '@/lib/spark/orders'
+import { fetchDraftOrderNotes, formatNotesSummaryLines, sendOrderNotesPrompt, SODAMAX_SKIP_NOTES_BUTTON } from '@/lib/spark/order-notes'
+import { displayOrderCustomerName, formatOrderTotal } from '@/lib/whatsapp-bot-orders'
+import {
+  formatBotItemLineWithPrice,
+  formatOrderItemLineWithPrice,
+} from '@/lib/order-summary-lines'
+import {
+  buildSimpleOrderSummaryLines,
+  buildWebOrderSummaryLines,
+} from '@/lib/order-summary-format'
+import { CUSTOM_QUANTITY_MESSAGE, QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
 import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/spark/constants'
-import { findSodamaxProductById, getSodamaxProductLabel, isNewMachineProductId } from './products'
+import { findSodamaxProductById, isNewMachineProductId } from './products'
 import { sendSodamaxProductList } from './product-list'
 import {
   MAIN_MENU_BUTTONS,
@@ -13,6 +25,66 @@ import {
 } from './constants'
 import type { SodamaxProduct, SodamaxSession } from './types'
 
+const SUMMARY_BUTTONS = [
+  { id: 'sm_confirm_yes', title: 'Confirm order' },
+  { id: 'sm_add_notes', title: 'Add notes' },
+]
+
+async function sendSodamaxOrderSummary(phone: string, session: SodamaxSession): Promise<void> {
+  if (!session.selected_item_id && session.draft_order_id) {
+    const order = await getDraftOrderById(session.draft_order_id, 'sodamax')
+    if (order) {
+      const itemLines =
+        order.items.length > 0
+          ? order.items
+              .filter(
+                item =>
+                  item.quantity > 0 &&
+                  !item.product_name.includes('Delivery fee') &&
+                  !item.product_name.includes('Gift card discount')
+              )
+              .map(item => formatOrderItemLineWithPrice(item))
+          : ['• —']
+      const summary = buildWebOrderSummaryLines({
+        orderRef: order.order_ref,
+        customerName: displayOrderCustomerName(order),
+        address: order.address,
+        city: order.city,
+        itemLines,
+        notesLines: formatNotesSummaryLines(order.notes),
+        totalFormatted: formatOrderTotal(order.total),
+      }).join('\n')
+      await sendWhatsAppButtons(phone, summary, SUMMARY_BUTTONS)
+      return
+    }
+  }
+
+  const product = session.selected_item_id
+    ? await findSodamaxProductById(session.selected_item_id)
+    : null
+  const labelSuffix = session.address ? ` (${session.address})` : undefined
+  const productLine =
+    session.selected_item_id && session.quantity
+      ? await formatBotItemLineWithPrice(
+          session.selected_item_id,
+          session.quantity,
+          product ? { product_name: product.name, price: product.price } : null,
+          labelSuffix
+        )
+      : '• —'
+
+  const notes = await fetchDraftOrderNotes(session.draft_order_id, 'sodamax')
+  const summary = buildSimpleOrderSummaryLines({
+    customerName: session.customer_name ?? '—',
+    productLines: [productLine],
+    deliveryAddress: session.city ?? '—',
+    notesLines: formatNotesSummaryLines(notes),
+    totalFormatted: session.total != null ? formatTotal(session.total) : '—',
+  }).join('\n')
+
+  await sendWhatsAppButtons(phone, summary, SUMMARY_BUTTONS)
+}
+
 async function sendOrderDecisionButtons(phone: string): Promise<void> {
   await sendWhatsAppButtons(phone, 'Do you want to order this product?', [
     { id: 'sm_order_yes', title: 'Yes' },
@@ -23,7 +95,7 @@ async function sendOrderDecisionButtons(phone: string): Promise<void> {
 async function sendQuantityList(phone: string): Promise<void> {
   await sendWhatsAppList(
     phone,
-    'How many would you like to order?',
+    QUANTITY_LIST_HEADER,
     'Select quantity',
     QUANTITY_OPTIONS.map(opt => ({
       id: opt.id.replace('qty_', 'sm_qty_'),
@@ -109,7 +181,7 @@ export async function resumeSodamaxSessionFlow(
       break
 
     case 'awaiting_quantity_custom':
-      await sendWhatsAppText(phone, 'Please type your custom quantity (e.g. 5, 10, 25).')
+      await sendWhatsAppText(phone, CUSTOM_QUANTITY_MESSAGE)
       break
 
     case 'awaiting_region':
@@ -119,23 +191,7 @@ export async function resumeSodamaxSessionFlow(
 
     case 'awaiting_customer_name':
       if (session.customer_name) {
-        const product = session.selected_item_id
-          ? await findSodamaxProductById(session.selected_item_id)
-          : null
-        let productLabel = product ? getSodamaxProductLabel(product) : 'Selected product'
-        if (session.address) productLabel += ` (${session.address})`
-
-        const summary = [
-          '*Order summary*',
-          '',
-          `Name: ${session.customer_name ?? '—'}`,
-          `Product: ${productLabel}`,
-          `Quantity: ${session.quantity ?? '—'}`,
-          `Delivery address: ${session.city ?? '—'}`,
-          `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
-        ].join('\n')
-
-        await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])
+        await sendSodamaxOrderSummary(phone, session)
       } else {
         await sendWhatsAppText(phone, 'What is your full name?')
       }
@@ -150,26 +206,13 @@ export async function resumeSodamaxSessionFlow(
       )
       break
 
-    case 'awaiting_confirm': {
-      const product = session.selected_item_id
-        ? await findSodamaxProductById(session.selected_item_id)
-        : null
-      let productLabel = product ? getSodamaxProductLabel(product) : 'Selected product'
-      if (session.address) productLabel += ` (${session.address})`
-
-      const summary = [
-        '*Order summary*',
-        '',
-        `Name: ${session.customer_name ?? '—'}`,
-        `Product: ${productLabel}`,
-        `Quantity: ${session.quantity ?? '—'}`,
-        `Delivery address: ${session.city ?? '—'}`,
-        `*Total: ${session.total != null ? formatTotal(session.total) : '—'}*`,
-      ].join('\n')
-
-      await sendWhatsAppButtons(phone, summary, [{ id: 'sm_confirm_yes', title: 'Confirm order' }])
+    case 'awaiting_confirm':
+      await sendSodamaxOrderSummary(phone, session)
       break
-    }
+
+    case 'awaiting_notes':
+      await sendOrderNotesPrompt(phone, SODAMAX_SKIP_NOTES_BUTTON)
+      break
 
     default:
       await sendWhatsAppText(phone, 'Send any message to see the main menu.')

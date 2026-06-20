@@ -47,7 +47,7 @@ export async function sendProductList(
 
   await sendWhatsAppList(
     phone,
-    `Select a product to continue${pageHint}:`,
+    `🛒 Select a product to continue${pageHint}:`,
     'View products',
     rows,
     'Products'

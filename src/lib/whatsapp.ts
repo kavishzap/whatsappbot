@@ -31,6 +31,32 @@ function parseApiError(result: { error?: { message?: string; code?: number; erro
   throw new Error(message)
 }
 
+export function formatWhatsAppSendError(result: {
+  error?: { message?: string; code?: number; error_subcode?: number }
+}): string {
+  const err = result?.error
+  const message = err?.message ?? 'WhatsApp API request failed'
+  const code = err?.code ?? 0
+
+  if (
+    code === 131047 ||
+    message.toLowerCase().includes('24 hours') ||
+    message.toLowerCase().includes('re-engagement')
+  ) {
+    return 'This number has not messaged your WhatsApp line recently. Use a template message (configured automatically for test sends).'
+  }
+
+  if (code === 131026 || message.toLowerCase().includes('not a valid whatsapp')) {
+    return 'That phone number is not registered on WhatsApp or is invalid.'
+  }
+
+  if (code === 132000 || message.toLowerCase().includes('template')) {
+    return `WhatsApp template error: ${message}. Check that the template exists and is approved in Meta Business Manager.`
+  }
+
+  return message
+}
+
 import { getCurrentWhatsAppLine, getPhoneNumberIdForLine } from './whatsapp-line'
 import { logWhatsAppMediaUpload, logWhatsAppOutbound } from './whatsapp-log'
 
@@ -85,6 +111,22 @@ export async function sendWhatsAppText(to: string, text: string) {
   logWhatsAppOutbound(to, payload, { response: result })
 
   return result
+}
+
+export async function sendWhatsAppTemplate(
+  to: string,
+  templateName: string,
+  languageCode = 'en_US'
+) {
+  const payload = {
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  }
+
+  return sendMessagePayload(to, payload)
 }
 
 export async function uploadWhatsAppMedia(

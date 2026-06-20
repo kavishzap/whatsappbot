@@ -6,7 +6,7 @@ ALTER TABLE whatsapp_bot_orders
 
 ALTER TABLE whatsapp_bot_orders
   ADD CONSTRAINT whatsapp_bot_orders_status_check
-  CHECK (status IN ('draft', 'pending', 'approved', 'rejected'));
+  CHECK (status IN ('draft', 'complete', 'approved', 'rejected'));
 
 -- Session reminder + draft order tracking
 ALTER TABLE whatsapp_sessions

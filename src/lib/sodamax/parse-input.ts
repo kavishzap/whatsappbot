@@ -54,6 +54,10 @@ export function isYesAnswer(input: MessageInput): boolean {
   return matchesAny(normalize(input.value), YES_PATTERNS)
 }
 
+export function isAddNotesAnswer(input: MessageInput): boolean {
+  return input.type === 'button' && input.value === 'sm_add_notes'
+}
+
 export function isSeeMoreAnswer(input: MessageInput): boolean {
   return input.type === 'button' && input.value === 'sm_order_see_more'
 }

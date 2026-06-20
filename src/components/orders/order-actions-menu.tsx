@@ -1,16 +1,11 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
-
-const MENU_WIDTH = 152
 
 interface OrderActionsMenuProps {
   order: WhatsAppBotOrder
   updating: boolean
   onApprove: () => void
-  onReject: () => void
   onDelete: () => void
 }
 
@@ -18,146 +13,67 @@ export function OrderActionsMenu({
   order,
   updating,
   onApprove,
-  onReject,
   onDelete,
 }: OrderActionsMenuProps) {
-  const [open, setOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (!open || !buttonRef.current) return
-
-    const updatePosition = () => {
-      if (!buttonRef.current) return
-      const rect = buttonRef.current.getBoundingClientRect()
-      setMenuPosition({
-        top: rect.bottom + 4,
-        left: Math.min(Math.max(8, rect.right - MENU_WIDTH), window.innerWidth - MENU_WIDTH - 8),
-      })
-    }
-
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (
-        buttonRef.current?.contains(target) ||
-        menuRef.current?.contains(target)
-      ) {
-        return
-      }
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [open])
-
-  const run = (action: () => void) => {
-    setOpen(false)
-    action()
-  }
-
-  const items = [
-    { key: 'approve', label: 'Approve', onClick: () => run(onApprove) },
-    { key: 'reject', label: 'Reject', onClick: () => run(onReject), tone: 'danger' as const },
-    { key: 'delete', label: 'Delete', onClick: () => run(onDelete), tone: 'danger' as const },
-  ]
-
-  const menu =
-    open &&
-    menuPosition &&
-    typeof document !== 'undefined' &&
-    createPortal(
-      <div
-        ref={menuRef}
-        role="menu"
-        style={{
-          position: 'fixed',
-          top: menuPosition.top,
-          left: menuPosition.left,
-          width: MENU_WIDTH,
-          zIndex: 9999,
-        }}
-        className="flex flex-col rounded-lg border border-ink-200 bg-white py-1 shadow-lg"
-        onClick={e => e.stopPropagation()}
-      >
-        {items.map(item => (
-          <button
-            key={item.key}
-            type="button"
-            role="menuitem"
-            disabled={updating}
-            onClick={item.onClick}
-            className={`block w-full whitespace-nowrap px-3 py-2 text-left text-sm disabled:opacity-40 ${
-              item.tone === 'danger'
-                ? 'text-red-600 hover:bg-red-50'
-                : 'text-ink-700 hover:bg-ink-50'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>,
-      document.body
-    )
+  const showApprove = order.status !== 'approved'
 
   return (
-    <>
+    <div
+      className="inline-flex items-center justify-end gap-1"
+      onClick={e => e.stopPropagation()}
+    >
+      {showApprove && (
+        <button
+          type="button"
+          disabled={updating}
+          onClick={onApprove}
+          title="Approve order"
+          aria-label={`Approve order ${order.order_ref}`}
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-brand-200 text-brand-700 hover:bg-brand-50 disabled:opacity-40"
+        >
+          {updating ? <Spinner /> : <CheckIcon className="w-3.5 h-3.5" />}
+        </button>
+      )}
       <button
-        ref={buttonRef}
         type="button"
         disabled={updating}
-        onClick={e => {
-          e.stopPropagation()
-          setOpen(prev => !prev)
-        }}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Actions for order ${order.order_ref}`}
-        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-ink-400 hover:text-ink-700 hover:bg-ink-100 disabled:opacity-40"
+        onClick={onDelete}
+        title="Delete order"
+        aria-label={`Delete order ${order.order_ref}`}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
       >
-        {updating ? <Spinner /> : <MoreIcon />}
+        {updating && !showApprove ? <Spinner /> : <TrashIcon className="w-3.5 h-3.5" />}
       </button>
-      {menu}
-    </>
-  )
-}
-
-function MoreIcon() {
-  return (
-    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="5" r="1.75" />
-      <circle cx="12" cy="12" r="1.75" />
-      <circle cx="12" cy="19" r="1.75" />
-    </svg>
+    </div>
   )
 }
 
 function Spinner() {
   return (
-    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
     </svg>
   )
 }

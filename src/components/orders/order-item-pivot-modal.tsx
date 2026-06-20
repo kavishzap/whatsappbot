@@ -15,7 +15,7 @@ import {
   type ItemPivotRow,
 } from '@/lib/order-item-pivot'
 import { downloadCsvRows } from '@/lib/export-csv'
-import type { OrderStatus, WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
+import { formatOrderTotal, type OrderStatus, type WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
 
 interface OrderItemPivotModalProps {
   open: boolean
@@ -27,7 +27,7 @@ interface OrderItemPivotModalProps {
 const STATUS_OPTIONS: { value: '' | OrderStatus; label: string }[] = [
   { value: '', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'complete', label: 'Complete' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
 ]
@@ -64,6 +64,11 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
     [pivotRows]
   )
 
+  const totalAmount = useMemo(
+    () => pivotRows.reduce((sum, row) => sum + row.totalAmount, 0),
+    [pivotRows]
+  )
+
   const hasActiveFilters = isOrderDateFilterActive(dateFilter) || statusFilter !== ''
 
   const clearFilters = () => {
@@ -94,7 +99,7 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
               Item pivot
             </h2>
             <p className="text-sm text-ink-500 mt-0.5">
-              Total quantity ordered by product across filtered orders.
+              Total quantity and amount ordered by product across filtered orders.
             </p>
           </div>
           <button
@@ -134,7 +139,8 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
               </button>
             )}
             <span className="text-sm text-ink-500 tabular-nums">
-              {pivotRows.length} product{pivotRows.length === 1 ? '' : 's'} · {totalQty} units
+              {pivotRows.length} product{pivotRows.length === 1 ? '' : 's'} · {totalQty} units ·{' '}
+              {formatOrderTotal(totalAmount)}
             </span>
             <button
               type="button"
@@ -178,6 +184,9 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
                   <th className="px-3 py-2.5 text-right font-semibold uppercase tracking-wide text-xs w-28">
                     Total qty
                   </th>
+                  <th className="px-3 py-2.5 text-right font-semibold uppercase tracking-wide text-xs w-32">
+                    Total amount
+                  </th>
                   <th className="px-4 sm:px-6 py-2.5 text-right font-semibold uppercase tracking-wide text-xs w-24">
                     Orders
                   </th>
@@ -192,6 +201,9 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
                 <tr>
                   <td className="px-4 sm:px-6 py-3 font-semibold text-ink-900">Total</td>
                   <td className="px-3 py-3 text-right font-bold tabular-nums text-brand-700">{totalQty}</td>
+                  <td className="px-3 py-3 text-right font-bold tabular-nums text-brand-700">
+                    {formatOrderTotal(totalAmount)}
+                  </td>
                   <td className="px-4 sm:px-6 py-3 text-right tabular-nums text-ink-600">
                     {filteredOrders.length}
                   </td>
@@ -210,6 +222,9 @@ function PivotRow({ row }: { row: ItemPivotRow }) {
     <tr className="align-middle">
       <td className="px-4 sm:px-6 py-2.5 font-medium text-ink-900">{row.productName}</td>
       <td className="px-3 py-2.5 text-right tabular-nums text-ink-800">{row.totalQty}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums font-medium text-ink-900">
+        {formatOrderTotal(row.totalAmount)}
+      </td>
       <td className="px-4 sm:px-6 py-2.5 text-right tabular-nums text-ink-500">{row.orderCount}</td>
     </tr>
   )

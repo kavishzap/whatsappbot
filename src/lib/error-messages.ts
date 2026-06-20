@@ -41,6 +41,7 @@ export function getBotItemErrorMessage(error: unknown): string {
 export function validateBotItemRow(row: {
   productName: string
   adLink: string
+  adLink2?: string
   price: string
   description: string
 }): string | null {
@@ -48,12 +49,13 @@ export function validateBotItemRow(row: {
     return 'Please enter a product name before saving.'
   }
 
-  const adLink = row.adLink.trim()
-  if (adLink) {
+  for (const link of [row.adLink, row.adLink2 ?? '']) {
+    const trimmed = link.trim()
+    if (!trimmed) continue
     try {
-      new URL(adLink)
+      new URL(trimmed)
     } catch {
-      return 'Please enter a valid ad link (e.g. https://example.com).'
+      return 'Please enter valid ad links (e.g. https://example.com).'
     }
   }
 

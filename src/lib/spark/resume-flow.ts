@@ -3,6 +3,7 @@ import { sendProductList } from './product-list'
 import { sendQuantityList, sendCustomQuantityPrompt } from './quantity-list'
 import { sendDeliveryAddressPrompt } from './regions'
 import { sendOrderSummary } from './order-summary'
+import { sendOrderNotesPrompt, SPARK_SKIP_NOTES_BUTTON } from './order-notes'
 import { REMINDER_MESSAGE, MAIN_MENU_BUTTONS } from './constants'
 import { isAddMoreCheckoutReady, type WhatsAppSession } from './types'
 
@@ -62,6 +63,10 @@ export async function resumeSessionFlow(phone: string, session: WhatsAppSession)
 
     case 'awaiting_confirm':
       await sendOrderSummary(phone, session)
+      break
+
+    case 'awaiting_notes':
+      await sendOrderNotesPrompt(phone, SPARK_SKIP_NOTES_BUTTON)
       break
 
     default:

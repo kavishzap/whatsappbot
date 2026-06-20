@@ -23,6 +23,7 @@ import {
   sessionCartRow,
 } from './cart'
 import { sendOrderSummary } from './order-summary'
+import { sendOrderThankYouWithOtherQuery } from '@/lib/order-thank-you'
 import {
   extractMessageInput,
   isYesAnswer,
@@ -30,6 +31,7 @@ import {
   isAddMoreProductAnswer,
   isBackToSummaryAnswer,
   isRemoveLastItemAnswer,
+  isAddNotesAnswer,
   parseProductSelection,
   parseProductListPage,
   parseQuantitySelection,
@@ -48,14 +50,13 @@ import {
   OTHER_QUERY_MESSAGE,
   OTHER_QUERY_CTA_LABEL,
   SUPPORT_WHATSAPP_URL,
-  formatTotal,
   computeOrderTotal,
   PROCESS_ERROR_MESSAGE,
-  DELIVERY_CONFIRMATION_MESSAGE,
 } from './constants'
 import { getCachedMediaId, setCachedMediaId } from './media-cache'
 import { sendProcessErrorWithSupport } from './process-error'
 import { buildCityIdPatch } from './match-city'
+import { parseOrderNotesText, saveDraftOrderNotes, sendOrderNotesPrompt, SPARK_SKIP_NOTES_BUTTON, isSkipNotesAnswer } from './order-notes'
 import type { BotItem, IncomingWhatsAppMessage, MessageInput, WhatsAppSession } from './types'
 import { isAddMoreCheckoutReady } from './types'
 
@@ -150,6 +151,24 @@ export async function handleChatbotMessage(message: IncomingWhatsAppMessage): Pr
 
     if (session.state !== 'idle') {
       await handleActiveSession(phone, session, input, message.profile_name)
+      return
+    }
+
+    const menuSelection = parseMenuSelection(input)
+    if (menuSelection === 'menu_other_query') {
+      await sendWhatsAppCtaUrl(
+        phone,
+        OTHER_QUERY_MESSAGE,
+        OTHER_QUERY_CTA_LABEL,
+        SUPPORT_WHATSAPP_URL
+      )
+      return
+    }
+    if (menuSelection === 'menu_order_product') {
+      await sendProductList(phone)
+      void updateSession(phone, { state: 'awaiting_product_selection' }).catch(err =>
+        console.error('Session persist failed:', err)
+      )
       return
     }
 
@@ -257,6 +276,9 @@ async function handleActiveSession(
       break
     case 'awaiting_customer_name':
       await proceedToConfirmWithProfileName(phone, session, session.city ?? '', profileName, input)
+      break
+    case 'awaiting_notes':
+      await handleNotesInput(phone, session, input)
       break
     case 'awaiting_confirm':
       await handleConfirm(phone, session, input)
@@ -849,6 +871,62 @@ async function handleRemoveLastItem(phone: string, session: WhatsAppSession): Pr
   )
 }
 
+async function handleNotesInput(
+  phone: string,
+  session: WhatsAppSession,
+  input: MessageInput
+): Promise<void> {
+  if (!session.draft_order_id) {
+    await sendProcessError(phone)
+    return
+  }
+
+  if (isSkipNotesAnswer(input, SPARK_SKIP_NOTES_BUTTON.id)) {
+    await finishOrderNotes(phone, session, null)
+    return
+  }
+
+  const notes = parseOrderNotesText(input)
+  if (!notes) {
+    await sendOrderNotesPrompt(phone, SPARK_SKIP_NOTES_BUTTON)
+    return
+  }
+
+  await finishOrderNotes(phone, session, notes)
+}
+
+async function finishOrderNotes(
+  phone: string,
+  session: WhatsAppSession,
+  notes: string | null
+): Promise<void> {
+  if (!session.draft_order_id) {
+    await sendProcessError(phone)
+    return
+  }
+
+  const saveResult = await saveDraftOrderNotes(session.draft_order_id, notes, 'spark')
+
+  if (!saveResult.success) {
+    console.error('saveDraftOrderNotes failed:', saveResult.error)
+    await sendProcessError(phone)
+    return
+  }
+
+  const updatedSession = mergeLocalSession(session, { state: 'awaiting_confirm' })
+  await sendOrderSummary(
+    phone,
+    updatedSession,
+    notes ? 'Notes saved.' : 'No notes added.'
+  )
+  await updateSession(phone, { state: 'awaiting_confirm' }, { previous: session, includeCart: true })
+}
+
+async function promptForOrderNotes(phone: string, session: WhatsAppSession): Promise<void> {
+  await sendOrderNotesPrompt(phone, SPARK_SKIP_NOTES_BUTTON)
+  await updateSession(phone, { state: 'awaiting_notes' }, { previous: session, includeCart: true })
+}
+
 async function handleConfirm(
   phone: string,
   session: WhatsAppSession,
@@ -856,6 +934,11 @@ async function handleConfirm(
 ): Promise<void> {
   if (isAddMoreProductAnswer(input)) {
     await startAddMoreProduct(phone, session)
+    return
+  }
+
+  if (isAddNotesAnswer(input)) {
+    await promptForOrderNotes(phone, session)
     return
   }
 
@@ -868,7 +951,7 @@ async function handleConfirm(
     await sendOrderSummary(
       phone,
       session,
-      'Please tap *Confirm order*, *Add more product*, or *Remove last item*.'
+      'Please tap *Confirm order*, *Add notes*, *Add more product*, or *Remove last item*.'
     )
     return
   }
@@ -893,16 +976,11 @@ async function handleConfirm(
   )
 
   if (result.success) {
-    await sendWhatsAppText(
+    await sendOrderThankYouWithOtherQuery(
       phone,
-      [
-        'Thank you! Your order has been confirmed.',
-        '',
-        `*Order ref:* *${result.orderRef ?? '—'}*`,
-        `*Total:* *${formatTotal(session.total)}*`,
-        '',
-        DELIVERY_CONFIRMATION_MESSAGE,
-      ].join('\n')
+      result.orderRef ?? '—',
+      session.total,
+      { id: 'menu_other_query', title: 'Other Query' }
     )
     await resetSession(phone)
     return

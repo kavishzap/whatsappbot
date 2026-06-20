@@ -6,7 +6,7 @@ export const WELCOME_MENU_MESSAGE =
 /** WhatsApp reply button titles are limited to 20 characters. */
 export const MAIN_MENU_BUTTONS = [
   { id: 'sm_new_machine', title: 'SodaMax Machine' },
-  { id: 'sm_order_product', title: 'Products & Refill' },
+  { id: 'sm_order_product', title: 'Refill & Products' },
   { id: 'sm_other_query', title: 'Other Query' },
 ] as const
 
@@ -53,7 +53,7 @@ export const ORDER_PLATFORM_URL =
   'https://sodamax-online-order.netlify.app'
 
 export const WEB_CHECKOUT_MESSAGE =
-  'Browse products & refills on our online store.\n\nAfter checkout, tap *Continue on WhatsApp* and send us your order reference to confirm.'
+  'Browse refills and other products on our online store.\n\nAfter checkout, tap *Continue on WhatsApp* and send us your order reference to confirm.'
 
 export const WEB_CHECKOUT_CTA_LABEL = 'Open store'
 

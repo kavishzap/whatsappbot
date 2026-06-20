@@ -72,21 +72,28 @@ export function TablePagination({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 py-2.5 border-t border-ink-100 bg-ink-50/50 shrink-0">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
-        <p className="text-sm text-ink-500">
-          Showing <span className="font-semibold text-ink-700">{rangeStart}–{rangeEnd}</span> of{' '}
-          <span className="font-semibold text-ink-700">{totalItems}</span>
+    <div className="border-t border-ink-100 bg-ink-50/50 shrink-0 px-2 py-1.5 sm:px-3 sm:py-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+        <p className="text-xs sm:text-sm text-ink-500 whitespace-nowrap shrink-0">
+          <span className="sm:hidden">
+            <span className="font-semibold text-ink-700">{rangeStart}–{rangeEnd}</span>/{totalItems}
+          </span>
+          <span className="hidden sm:inline">
+            Showing <span className="font-semibold text-ink-700">{rangeStart}–{rangeEnd}</span> of{' '}
+            <span className="font-semibold text-ink-700">{totalItems}</span>
+          </span>
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="rows-per-page" className="text-sm text-ink-500 whitespace-nowrap">
+
+        <div className="flex items-center gap-1 shrink-0">
+          <label htmlFor="rows-per-page" className="sr-only sm:not-sr-only sm:text-sm sm:text-ink-500 sm:whitespace-nowrap">
             Rows
           </label>
           <select
             id="rows-per-page"
             value={selectValue}
             onChange={e => handleSelectChange(e.target.value)}
-            className="select-field w-[4.5rem] !pr-8"
+            className="select-field w-[3.25rem] sm:w-[4.5rem] !pr-6 sm:!pr-8 h-8 text-xs sm:text-sm"
+            aria-label="Rows per page"
           >
             {PAGE_SIZE_OPTIONS.map(size => (
               <option key={size} value={size}>
@@ -95,63 +102,66 @@ export function TablePagination({
             ))}
             <option value="custom">Custom</option>
           </select>
-          {(customMode || isCustomSize) && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={1}
-                max={MAX_CUSTOM_PAGE_SIZE}
-                value={customDraft}
-                onChange={e => {
-                  setCustomDraft(e.target.value)
-                  setCustomError(false)
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    applyCustomPageSize()
-                  }
-                }}
-                onBlur={applyCustomPageSize}
-                placeholder="e.g. 1000"
-                aria-label="Custom rows per page"
-                aria-invalid={customError}
-                className={`h-10 sm:h-8 w-24 sm:w-20 rounded-lg border bg-white px-2.5 text-sm text-ink-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
-                  customError ? 'border-red-300 focus:border-red-400' : 'border-ink-200 focus:border-brand-500'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={applyCustomPageSize}
-                className="btn-secondary !py-2 !px-2.5 !text-xs sm:!text-sm whitespace-nowrap"
-              >
-                Apply
-              </button>
-            </div>
-          )}
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className="btn-secondary !py-1.5 !px-2 sm:!px-3.5 text-xs sm:text-sm disabled:opacity-40 h-8 whitespace-nowrap"
+          >
+            <span className="sm:hidden">Prev</span>
+            <span className="hidden sm:inline">Previous</span>
+          </button>
+          <span className="px-0.5 sm:px-2 text-xs sm:text-sm font-medium text-ink-500 tabular-nums min-w-[2.5rem] sm:min-w-[4.5rem] text-center shrink-0">
+            {page}/{totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages}
+            className="btn-secondary !py-1.5 !px-2 sm:!px-3.5 text-xs sm:text-sm disabled:opacity-40 h-8 whitespace-nowrap"
+          >
+            Next
+          </button>
         </div>
       </div>
-      <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-        <button
-          type="button"
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 1}
-          className="btn-secondary flex-1 sm:flex-none !py-2.5 sm:!py-2 !px-3.5 text-sm disabled:opacity-40 min-h-[44px] sm:min-h-0"
-        >
-          Previous
-        </button>
-        <span className="px-2 text-sm font-medium text-ink-500 tabular-nums min-w-[4.5rem] text-center shrink-0">
-          {page} / {totalPages}
-        </span>
-        <button
-          type="button"
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= totalPages}
-          className="btn-secondary flex-1 sm:flex-none !py-2.5 sm:!py-2 !px-3.5 text-sm disabled:opacity-40 min-h-[44px] sm:min-h-0"
-        >
-          Next
-        </button>
-      </div>
+
+      {(customMode || isCustomSize) && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          <input
+            type="number"
+            min={1}
+            max={MAX_CUSTOM_PAGE_SIZE}
+            value={customDraft}
+            onChange={e => {
+              setCustomDraft(e.target.value)
+              setCustomError(false)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                applyCustomPageSize()
+              }
+            }}
+            onBlur={applyCustomPageSize}
+            placeholder="e.g. 1000"
+            aria-label="Custom rows per page"
+            aria-invalid={customError}
+            className={`h-8 w-24 sm:w-20 rounded-lg border bg-white px-2.5 text-sm text-ink-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
+              customError ? 'border-red-300 focus:border-red-400' : 'border-ink-200 focus:border-brand-500'
+            }`}
+          />
+          <button
+            type="button"
+            onClick={applyCustomPageSize}
+            className="btn-secondary !py-1.5 !px-2.5 !text-xs sm:!text-sm whitespace-nowrap h-8"
+          >
+            Apply
+          </button>
+        </div>
+      )}
     </div>
   )
 }

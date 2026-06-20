@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { isAllowedRole } from '@/lib/auth'
 import { getLoginErrorMessage } from '@/lib/error-messages'
+import { SiteFooter } from '@/components/ui/site-footer'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -58,7 +59,8 @@ function LoginForm() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-auth-canvas flex items-center justify-center p-4 sm:p-8">
+    <main className="min-h-[100dvh] bg-auth-canvas flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-6 lg:gap-10 items-center">
         <section className="hidden lg:flex flex-col justify-center px-4">
           <div className="inline-flex items-center gap-2 badge-success w-fit mb-6">
@@ -160,6 +162,8 @@ function LoginForm() {
           </p>
         </section>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   )
 }

@@ -28,7 +28,7 @@ export async function sendSodamaxProductList(phone: string, page = 0): Promise<v
 
   await sendWhatsAppList(
     phone,
-    `Select a product to continue${pageHint}:`,
+    `🛒 Select a product to continue${pageHint}:`,
     'View products',
     slice.map(productListRow),
     'Products'

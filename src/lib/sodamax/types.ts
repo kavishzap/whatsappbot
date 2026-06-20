@@ -11,6 +11,7 @@ export type SodamaxChatState =
   | 'awaiting_region'
   | 'awaiting_delivery_address'
   | 'awaiting_customer_name'
+  | 'awaiting_notes'
   | 'awaiting_confirm'
   | 'awaiting_web_checkout'
 

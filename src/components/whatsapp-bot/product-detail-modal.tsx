@@ -15,6 +15,7 @@ export interface ProductDetailRow {
   productName: string
   price: string
   adLink: string
+  adLink2: string
   imageBase64: string | null
   imagePreview: string | null
   description: string
@@ -203,6 +204,19 @@ export function ProductDetailModal({
             />
             <p className="text-[10px] text-ink-400 mt-1">
               Paste referral.source_url from the WhatsApp webhook when someone messages from your ad.
+            </p>
+          </DetailField>
+
+          <DetailField label="Facebook ad link 2">
+            <input
+              type="url"
+              value={row.adLink2}
+              onChange={e => onUpdate(row.id, { adLink2: e.target.value })}
+              placeholder="https://fb.me/optional-second-link"
+              className={`${inputClass} break-all`}
+            />
+            <p className="text-[10px] text-ink-400 mt-1">
+              Optional second ad URL for the same product. The bot matches either link.
             </p>
           </DetailField>
 

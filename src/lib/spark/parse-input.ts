@@ -92,6 +92,10 @@ export function isRemoveLastItemAnswer(input: MessageInput): boolean {
   return input.type === 'button' && input.value === 'cart_remove_last'
 }
 
+export function isAddNotesAnswer(input: MessageInput): boolean {
+  return input.type === 'button' && input.value === 'add_notes'
+}
+
 export function parseMenuSelection(input: MessageInput): string | null {
   if (input.type === 'button' && input.value.startsWith('menu_')) {
     return input.value

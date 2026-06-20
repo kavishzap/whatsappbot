@@ -18,7 +18,7 @@ import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ProductDetailModal, type ProductDetailRow } from '@/components/whatsapp-bot/product-detail-modal'
 import { ProductDragHandle } from '@/components/whatsapp-bot/product-drag-handle'
-import { StatCard } from '@/components/ui/stat-card'
+import { CollapsibleKpiPanel } from '@/components/ui/collapsible-kpi-panel'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
 
 interface BotRow {
@@ -27,6 +27,7 @@ interface BotRow {
   productName: string
   price: string
   adLink: string
+  adLink2: string
   hasImage: boolean
   imageBase64: string | null
   imagePreview: string | null
@@ -35,7 +36,7 @@ interface BotRow {
 }
 
 const GRID_COLS =
-  '52px minmax(120px,1fr) 88px minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
+  '52px minmax(120px,1fr) 88px minmax(140px,1.1fr) minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
 
 function createEmptyRow(): ProductDetailRow {
   return {
@@ -43,6 +44,7 @@ function createEmptyRow(): ProductDetailRow {
     productName: '',
     price: '',
     adLink: '',
+    adLink2: '',
     imageBase64: null,
     imagePreview: null,
     description: '',
@@ -60,6 +62,7 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
     productName: item.product_name ?? '',
     price: item.price != null ? String(item.price) : '',
     adLink: item.ad_link ?? '',
+    adLink2: item.ad_link_2 ?? '',
     hasImage,
     imageBase64,
     imagePreview: toImageSrc(imageBase64),
@@ -78,6 +81,7 @@ function matchesProductSearch(row: BotRow, query: string): boolean {
   return (
     row.productName.toLowerCase().includes(q) ||
     row.adLink.toLowerCase().includes(q) ||
+    row.adLink2.toLowerCase().includes(q) ||
     row.description.toLowerCase().includes(q)
   )
 }
@@ -103,7 +107,7 @@ export default function WhatsAppBotPage() {
 
   const stats = useMemo(() => {
     const withPhotos = rows.filter(r => r.hasImage).length
-    const withLinks = rows.filter(r => r.adLink.trim()).length
+    const withLinks = rows.filter(r => r.adLink.trim() || r.adLink2.trim()).length
     return { total: rows.length, withPhotos, withLinks }
   }, [rows])
 
@@ -153,6 +157,7 @@ export default function WhatsAppBotPage() {
     const payload = {
       company: 'spark' as const,
       ad_link: modalRow.adLink.trim() || null,
+      ad_link_2: modalRow.adLink2.trim() || null,
       product_name: modalRow.productName.trim(),
       price: parseFloat(modalRow.price),
       image_base64: modalRow.imageBase64,
@@ -257,8 +262,17 @@ export default function WhatsAppBotPage() {
         key: 'link',
         header: 'Ad link',
         render: row => (
-          <span className="text-ink-500 truncate block" title={row.adLink}>
+          <span className="text-ink-500 truncate block text-xs" title={row.adLink || undefined}>
             {row.adLink || '—'}
+          </span>
+        ),
+      },
+      {
+        key: 'link2',
+        header: 'Ad link 2',
+        render: row => (
+          <span className="text-ink-500 truncate block text-xs" title={row.adLink2 || undefined}>
+            {row.adLink2 || '—'}
           </span>
         ),
       },
@@ -294,9 +308,10 @@ export default function WhatsAppBotPage() {
       },
       {
         key: 'actions',
-        header: '',
+        header: 'Actions',
+        shrinkCol: true,
+        align: 'right',
         headerClassName: 'sr-only',
-        cellClassName: 'text-center',
         render: row => (
           <button
             type="button"
@@ -306,7 +321,8 @@ export default function WhatsAppBotPage() {
             }}
             disabled={deletingId === row.id}
             title="Delete product"
-            className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40"
+            aria-label={`Delete ${row.productName || 'product'}`}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
           >
             {deletingId === row.id ? <Spinner className="w-3.5 h-3.5" /> : <TrashIcon className="w-3.5 h-3.5" />}
           </button>
@@ -342,19 +358,26 @@ export default function WhatsAppBotPage() {
         onDelete={requestDeleteFromModal}
       />
 
-      <div className="stat-grid shrink-0">
-        <StatCard label="Total products" value={loading ? '—' : String(stats.total)} />
-        <StatCard
-          label="With photos"
-          value={loading ? '—' : String(stats.withPhotos)}
-          tone="brand"
-        />
-        <StatCard
-          label="Catalog status"
-          value={loading ? '—' : rows.length > 0 ? 'Active' : 'Empty'}
-          tone={rows.length > 0 ? 'success' : 'default'}
-        />
-      </div>
+      <CollapsibleKpiPanel
+        title="Catalog overview"
+        subtitle="Spark"
+        items={[
+          {
+            label: 'Total products',
+            value: loading ? '—' : String(stats.total),
+          },
+          {
+            label: 'With photos',
+            value: loading ? '—' : String(stats.withPhotos),
+            tone: 'brand',
+          },
+          {
+            label: 'Catalog status',
+            value: loading ? '—' : rows.length > 0 ? 'Active' : 'Empty',
+            tone: rows.length > 0 ? 'success' : 'default',
+          },
+        ]}
+      />
 
       <DynamicTable
         data={rows}
@@ -363,7 +386,7 @@ export default function WhatsAppBotPage() {
         loading={loading}
         variant="grid"
         gridTemplateColumns={GRID_COLS}
-        minWidth="960px"
+        minWidth="1080px"
         defaultPageSize={100}
         searchPlaceholder="Search product, link, description…"
         searchFilter={matchesProductSearch}
@@ -407,9 +430,16 @@ export default function WhatsAppBotPage() {
           </div>
         )}
         toolbar={
-          <button type="button" onClick={openAddModal} disabled={loading} className="btn-primary w-full sm:w-auto">
-            <PlusIcon className="w-3.5 h-3.5" />
-            Add product
+          <button
+            type="button"
+            onClick={openAddModal}
+            disabled={loading}
+            className="btn-primary shrink-0 !p-2 sm:!py-2 sm:!px-4"
+            aria-label="Add product"
+            title="Add product"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span className="hidden sm:inline sm:ml-1.5">Add product</span>
           </button>
         }
         emptyState={

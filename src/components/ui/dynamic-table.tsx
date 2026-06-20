@@ -598,11 +598,11 @@ export function DynamicTable<T>({
   return (
     <div className={`panel flex flex-col flex-1 min-h-0 ${className}`}>
       {showToolbar && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-ink-100 shrink-0 bg-white">
+        <div className="flex flex-col gap-1.5 px-2 py-1.5 sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:gap-3 border-b border-ink-100 shrink-0 bg-white">
           {searchFilter && (
-            <div className="relative flex-1 min-w-[12rem] sm:min-w-[16rem] sm:max-w-md">
-              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg className="w-4 h-4 text-ink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="relative w-full min-w-0 lg:flex-1 lg:min-w-[16rem] lg:max-w-md">
+              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 sm:pl-3">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-ink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </span>
@@ -611,13 +611,13 @@ export function DynamicTable<T>({
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="input-field h-10 pl-10 pr-10"
+                className="input-field h-8 sm:h-10 pl-9 sm:pl-10 pr-9 sm:pr-10 text-sm"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-ink-400 hover:text-ink-600"
+                  className="absolute inset-y-0 right-0 flex items-center justify-center w-8 sm:w-10 text-ink-400 hover:text-ink-600"
                   aria-label="Clear search"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -628,17 +628,18 @@ export function DynamicTable<T>({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0 sm:ml-auto">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0 overflow-x-auto lg:ml-auto lg:overflow-visible">
             {filters.map(filter => (
-              <div key={filter.id} className="flex items-center gap-1.5 shrink-0">
-                <label htmlFor={filter.id} className="text-[10px] font-semibold text-ink-400 uppercase tracking-wide sr-only">
+              <div key={filter.id} className="flex items-center shrink-0">
+                <label htmlFor={filter.id} className="sr-only">
                   {filter.label}
                 </label>
                 <select
                   id={filter.id}
                   value={filter.value}
                   onChange={e => filter.onChange(e.target.value)}
-                  className="select-field min-w-[9.5rem]"
+                  className="select-field min-w-0 w-[6.75rem] sm:min-w-[9.5rem] h-8 sm:h-10 text-xs sm:text-sm"
+                  title={filter.label}
                 >
                   {filter.options.map(opt => (
                     <option key={opt.value} value={opt.value}>
@@ -653,9 +654,14 @@ export function DynamicTable<T>({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="btn-secondary shrink-0 !py-1.5 !px-3 text-sm"
+                className="btn-secondary shrink-0 !p-2 sm:!py-1.5 sm:!px-3 text-sm"
+                aria-label="Clear filters"
+                title="Clear filters"
               >
-                Clear filters
+                <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="hidden sm:inline">Clear filters</span>
               </button>
             )}
             {exportConfig && exportConfig.placement !== 'header' && (
@@ -663,10 +669,12 @@ export function DynamicTable<T>({
                 type="button"
                 onClick={handleExport}
                 disabled={loading || sortedData.length === 0}
-                className="btn-secondary shrink-0"
+                className="btn-secondary shrink-0 !p-2 sm:!px-3 sm:!py-2"
+                aria-label="Export CSV"
+                title="Export CSV"
               >
-                <ExportIcon className="w-3.5 h-3.5" />
-                Export CSV
+                <ExportIcon className="w-4 h-4" />
+                <span className="hidden sm:inline sm:ml-1.5">Export CSV</span>
               </button>
             )}
             {toolbar}

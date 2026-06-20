@@ -12,6 +12,7 @@ import { SidebarNav } from '@/components/dashboard/sidebar-nav'
 import { PAGE_META } from '@/components/dashboard/nav-config'
 import { DashboardHeaderProvider } from '@/components/dashboard/dashboard-header-context'
 import { DashboardTopBar } from '@/components/dashboard/dashboard-top-bar'
+import { SiteFooter } from '@/components/ui/site-footer'
 
 function getInitials(name: string | null, email: string | null): string {
   if (name) {
@@ -232,6 +233,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <main className="flex-1 flex flex-col min-h-0 overflow-hidden p-3 sm:p-4 lg:p-5">
               <div className="w-full flex flex-col flex-1 min-h-0 gap-3">{children}</div>
             </main>
+            <SiteFooter variant="dashboard" />
           </div>
         </div>
       </DashboardHeaderProvider>

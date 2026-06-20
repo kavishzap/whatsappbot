@@ -6,6 +6,7 @@ export interface WhatsAppCity {
   company_id: string
   name: string
   region: string
+  zone_name?: string | null
 }
 
 const CACHE_TTL_MS = 5 * 60_000

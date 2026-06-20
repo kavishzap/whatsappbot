@@ -83,15 +83,19 @@ async function fetchFullItemById(id: string): Promise<BotItem | null> {
   }
 }
 
+function itemMatchesAdLink(item: BotItem, incoming: string): boolean {
+  return linksMatch(item.ad_link, incoming) || linksMatch(item.ad_link_2, incoming)
+}
+
 export async function findItemByLink(link: string, company: WhatsAppCompany = 'spark'): Promise<BotItem | null> {
   const trimmed = link.trim()
   const items = await fetchAllItems(company)
 
   const hit =
-    items.find(item => linksMatch(item.ad_link, trimmed)) ??
+    items.find(item => itemMatchesAdLink(item, trimmed)) ??
     (() => {
       const extracted = extractUrlFromText(trimmed)
-      return extracted ? items.find(item => linksMatch(item.ad_link, extracted)) : undefined
+      return extracted ? items.find(item => itemMatchesAdLink(item, extracted)) : undefined
     })()
 
   if (!hit) return null
@@ -152,6 +156,13 @@ export function getItemLabel(item: BotItem, index?: number): string {
       return new URL(item.ad_link).hostname
     } catch {
       return item.ad_link
+    }
+  }
+  if (item.ad_link_2) {
+    try {
+      return new URL(item.ad_link_2).hostname
+    } catch {
+      return item.ad_link_2
     }
   }
   return index !== undefined ? `Product ${index + 1}` : 'Product'

@@ -2,15 +2,8 @@
 
 import { useState } from 'react'
 import { useToast } from '@/components/ui/toast'
+import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/phone'
 import type { WhatsAppLine } from '@/lib/whatsapp-line'
-
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  if (digits.startsWith('230')) return digits
-  if (digits.startsWith('0')) return `230${digits.slice(1)}`
-  return `230${digits}`
-}
 
 function TestPanel({
   line,
@@ -45,9 +38,9 @@ function TestPanel({
         }
 
   const handleSend = async () => {
-    const normalized = normalizePhone(phone)
-    if (normalized.length < 10) {
-      toast.error('Enter a valid phone number (e.g. 57833020 or +230 5783 3020)')
+    const normalized = normalizeWhatsAppPhone(phone)
+    if (!isPlausibleWhatsAppPhone(normalized)) {
+      toast.error('Enter a valid phone number (e.g. 57833020, 057833020, or +230 5783 3020)')
       return
     }
 
@@ -56,7 +49,7 @@ function TestPanel({
       const res = await fetch('/api/whatsapp-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line, phone: normalized }),
+        body: JSON.stringify({ line, phone }),
       })
       const data = (await res.json()) as {
         success?: boolean
@@ -64,6 +57,7 @@ function TestPanel({
         to?: string
         message?: string
         line?: string
+        sentVia?: 'template' | 'text'
       }
 
       if (!res.ok || !data.success) {
@@ -71,7 +65,11 @@ function TestPanel({
         return
       }
 
-      toast.success(`Sent "${data.message}" to ${data.to} via ${data.line}`)
+      const via =
+        data.sentVia === 'template'
+          ? ' (template — works even if they have not messaged recently)'
+          : ''
+      toast.success(`Sent to ${data.to} via ${data.line}${via}`)
     } catch {
       toast.error('Failed to send test message')
     } finally {
@@ -104,12 +102,14 @@ function TestPanel({
             type="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            placeholder="e.g. 57833020 or +230 5783 3020"
+            placeholder="e.g. 57833020, 057833020, or +230 5783 3020"
             className="input-field"
             autoComplete="tel"
           />
           <p className="text-xs text-ink-400 mt-1.5">
-            Mauritius numbers are auto-formatted with country code 230.
+            Mauritius numbers are auto-formatted with country code 230. Test sends use the
+            approved <span className="font-medium">hello_world</span> template so any WhatsApp
+            number can be reached.
           </p>
         </div>
 
