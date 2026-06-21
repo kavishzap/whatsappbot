@@ -56,6 +56,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
   const [sessions, setSessions] = useState<WhatsAppBotSessionMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [stateFilter, setStateFilter] = useState('')
+  const [productFilter, setProductFilter] = useState('')
   const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
 
   const loadSessions = useCallback(async () => {
@@ -80,6 +81,21 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
     return [
       { value: '', label: 'All steps' },
       ...states.map(state => ({ value: state, label: formatSessionState(state) })),
+    ]
+  }, [sessions])
+
+  const productOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const session of sessions) {
+      if (session.selected_item_id && session.product_name) {
+        byId.set(session.selected_item_id, session.product_name)
+      }
+    }
+    return [
+      { value: '', label: 'All products' },
+      ...Array.from(byId.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => ({ value: id, label: name })),
     ]
   }, [sessions])
 
@@ -219,6 +235,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
         onClearFilters={() => {
           setDateFilter(DEFAULT_TABLE_DATE_FILTER)
           setStateFilter('')
+          setProductFilter('')
         }}
         filters={[
           {
@@ -228,6 +245,14 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             onChange: setStateFilter,
             options: stateOptions,
             match: (session, value) => session.state === value,
+          },
+          {
+            id: 'product-filter',
+            label: 'Product',
+            value: productFilter,
+            onChange: setProductFilter,
+            options: productOptions,
+            match: (session, value) => session.selected_item_id === value,
           },
         ]}
         toolbar={
