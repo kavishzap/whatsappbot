@@ -80,13 +80,15 @@ export function parseProductSelection(input: MessageInput): string | null {
     (input.type === 'list' || input.type === 'button') &&
     input.value.startsWith('sm_product_')
   ) {
+    if (input.value.startsWith('sm_product_pg_')) return null
     return input.value.replace('sm_product_', '')
   }
   return null
 }
 
 export function parseProductListPage(input: MessageInput): number | null {
-  if (input.type !== 'button' || !input.value.startsWith('sm_product_pg_')) return null
+  if (input.type !== 'list' && input.type !== 'button') return null
+  if (!input.value.startsWith('sm_product_pg_')) return null
   const n = parseInt(input.value.replace('sm_product_pg_', ''), 10)
   return Number.isNaN(n) || n < 0 ? null : n
 }

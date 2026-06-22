@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { WHATSAPP_LIST_ROW_TITLE_MAX } from '@/lib/whatsapp-list-limits'
 import { fileToBase64, toImageSrc } from '@/lib/whatsapp-bot-items'
 import { useToast } from '@/components/ui/toast'
 
@@ -171,8 +172,13 @@ export function ProductDetailModal({
                   value={row.productName}
                   onChange={e => onUpdate(row.id, { productName: e.target.value })}
                   placeholder="Product name"
+                  maxLength={WHATSAPP_LIST_ROW_TITLE_MAX}
                   className={inputClass}
                 />
+                <p className="text-[10px] text-ink-400 mt-1">
+                  Max {WHATSAPP_LIST_ROW_TITLE_MAX} characters (WhatsApp product list).
+                  {row.productName.length}/{WHATSAPP_LIST_ROW_TITLE_MAX}
+                </p>
               </DetailField>
 
               <DetailField label="Price">
@@ -267,6 +273,7 @@ export function ProductDetailModal({
                         value={color.colorName}
                         onChange={e => updateColor(color.id, { colorName: e.target.value })}
                         placeholder="e.g. Navy Blue"
+                        maxLength={WHATSAPP_LIST_ROW_TITLE_MAX}
                         className={`${inputClass} flex-1 min-w-0`}
                       />
                       <button

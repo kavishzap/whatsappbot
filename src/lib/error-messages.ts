@@ -1,3 +1,8 @@
+import {
+  WHATSAPP_LIST_ROW_TITLE_MAX,
+  whatsappListTitleLimitMessage,
+} from '@/lib/whatsapp-list-limits'
+
 export function getLoginErrorMessage(error: unknown, fallback?: string): string {
   const message = error instanceof Error ? error.message : String(error ?? '')
   const lower = message.toLowerCase()
@@ -45,8 +50,13 @@ export function validateBotItemRow(row: {
   price: string
   description: string
 }): string | null {
-  if (!row.productName.trim()) {
+  const productName = row.productName.trim()
+  if (!productName) {
     return 'Please enter a product name before saving.'
+  }
+
+  if (productName.length > WHATSAPP_LIST_ROW_TITLE_MAX) {
+    return whatsappListTitleLimitMessage('Product name')
   }
 
   for (const link of [row.adLink, row.adLink2 ?? '']) {
@@ -70,6 +80,12 @@ export function validateBotItemRow(row: {
 export function validateProductColors(colors: { colorName: string }[]): string | null {
   const validColors = colors.filter(c => c.colorName.trim())
   if (validColors.length === 0) return null
+
+  for (const color of validColors) {
+    if (color.colorName.trim().length > WHATSAPP_LIST_ROW_TITLE_MAX) {
+      return whatsappListTitleLimitMessage('Color name')
+    }
+  }
 
   const names = validColors.map(c => c.colorName.trim().toLowerCase())
   if (new Set(names).size !== names.length) {

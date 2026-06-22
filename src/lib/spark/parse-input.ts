@@ -123,10 +123,12 @@ export function parseMenuSelection(input: MessageInput): string | null {
 
 export function parseProductSelection(input: MessageInput): string | null {
   if (input.type === 'list' && input.value.startsWith('product_')) {
+    if (input.value.startsWith('product_pg_')) return null
     return input.value.replace('product_', '')
   }
 
   if (input.type === 'button' && input.value.startsWith('product_')) {
+    if (input.value.startsWith('product_pg_')) return null
     return input.value.replace('product_', '')
   }
 
@@ -139,7 +141,8 @@ export function parseProductSelection(input: MessageInput): string | null {
 }
 
 export function parseProductListPage(input: MessageInput): number | null {
-  if (input.type !== 'button' || !input.value.startsWith('product_pg_')) return null
+  if (input.type !== 'list' && input.type !== 'button') return null
+  if (!input.value.startsWith('product_pg_')) return null
   const n = parseInt(input.value.replace('product_pg_', ''), 10)
   return Number.isNaN(n) || n < 0 ? null : n
 }

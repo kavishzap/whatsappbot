@@ -24,6 +24,7 @@ import {
 } from './cart'
 import { sendOrderSummary } from './order-summary'
 import { sendOrderThankYouWithOtherQuery } from '@/lib/order-thank-you'
+import { scheduleSparkFlavourPromo } from './promo-schedule'
 import {
   extractMessageInput,
   isYesAnswer,
@@ -983,6 +984,9 @@ async function handleConfirm(
       { id: 'menu_other_query', title: 'Other Query' }
     )
     await resetSession(phone)
+    await scheduleSparkFlavourPromo(phone).catch(err =>
+      console.error('scheduleSparkFlavourPromo failed:', err)
+    )
     return
   }
 
