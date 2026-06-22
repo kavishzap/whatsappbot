@@ -12,6 +12,8 @@ export interface WhatsAppBotItemSummary {
   company: WhatsAppCompany
   ad_link: string | null
   ad_link_2: string | null
+  ad_id: string | null
+  ad_id_2: string | null
   product_name: string
   price: number | null
   description: string
@@ -30,6 +32,8 @@ export interface BotItemPayload {
   company: WhatsAppCompany
   ad_link?: string | null
   ad_link_2?: string | null
+  ad_id?: string | null
+  ad_id_2?: string | null
   product_name: string
   price: number
   image_base64: string | null

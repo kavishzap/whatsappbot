@@ -45,7 +45,9 @@ export function getBotItemErrorMessage(error: unknown): string {
 
 export function validateBotItemRow(row: {
   productName: string
-  adLink: string
+  adId: string
+  adId2?: string
+  adLink?: string
   adLink2?: string
   price: string
   description: string
@@ -59,13 +61,21 @@ export function validateBotItemRow(row: {
     return whatsappListTitleLimitMessage('Product name')
   }
 
-  for (const link of [row.adLink, row.adLink2 ?? '']) {
+  for (const adId of [row.adId, row.adId2 ?? '']) {
+    const trimmed = adId.trim().replace(/\s/g, '')
+    if (!trimmed) continue
+    if (!/^\d+$/.test(trimmed)) {
+      return 'Facebook Ad IDs must contain digits only (copy from Meta Ads Manager).'
+    }
+  }
+
+  for (const link of [row.adLink ?? '', row.adLink2 ?? '']) {
     const trimmed = link.trim()
     if (!trimmed) continue
     try {
       new URL(trimmed)
     } catch {
-      return 'Please enter valid ad links (e.g. https://example.com).'
+      return 'Legacy ad links must be valid URLs (e.g. https://fb.me/…).'
     }
   }
 

@@ -26,6 +26,8 @@ export interface BotItem {
   company?: WhatsAppCompany
   ad_link: string | null
   ad_link_2: string | null
+  ad_id: string | null
+  ad_id_2: string | null
   product_name: string | null
   price: number | null
   image_base64: string | null

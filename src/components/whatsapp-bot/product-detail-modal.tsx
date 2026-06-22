@@ -15,6 +15,8 @@ export interface ProductDetailRow {
   id: string
   productName: string
   price: string
+  adId: string
+  adId2: string
   adLink: string
   adLink2: string
   imageBase64: string | null
@@ -200,31 +202,64 @@ export function ProductDetailModal({
             </div>
           </div>
 
-          <DetailField label="Facebook ad link">
+          <DetailField label="Facebook Ad ID">
             <input
-              type="url"
-              value={row.adLink}
-              onChange={e => onUpdate(row.id, { adLink: e.target.value })}
-              placeholder="https://fb.me/6L2QqVYgY"
-              className={`${inputClass} break-all`}
+              type="text"
+              inputMode="numeric"
+              value={row.adId}
+              onChange={e => onUpdate(row.id, { adId: e.target.value })}
+              placeholder="555555555"
+              className={`${inputClass} tabular-nums`}
             />
             <p className="text-[10px] text-ink-400 mt-1">
-              Paste referral.source_url from the WhatsApp webhook when someone messages from your ad.
+              Copy from Meta Ads Manager → Ads → your ad → Ad ID. Matches WhatsApp{' '}
+              <span className="font-medium">referral.source_id</span>.
             </p>
           </DetailField>
 
-          <DetailField label="Facebook ad link 2">
+          <DetailField label="Facebook Ad ID 2">
             <input
-              type="url"
-              value={row.adLink2}
-              onChange={e => onUpdate(row.id, { adLink2: e.target.value })}
-              placeholder="https://fb.me/optional-second-link"
-              className={`${inputClass} break-all`}
+              type="text"
+              inputMode="numeric"
+              value={row.adId2}
+              onChange={e => onUpdate(row.id, { adId2: e.target.value })}
+              placeholder="Optional second ad"
+              className={`${inputClass} tabular-nums`}
             />
             <p className="text-[10px] text-ink-400 mt-1">
-              Optional second ad URL for the same product. The bot matches either link.
+              Optional second ad ID for the same product (e.g. another creative).
             </p>
           </DetailField>
+
+          <details className="rounded-xl border border-ink-100 bg-ink-50/50 px-4 py-3">
+            <summary className="text-xs font-medium text-ink-600 cursor-pointer select-none">
+              Legacy fb.me links (optional fallback)
+            </summary>
+            <div className="mt-3 space-y-3">
+              <DetailField label="Facebook ad link">
+                <input
+                  type="url"
+                  value={row.adLink}
+                  onChange={e => onUpdate(row.id, { adLink: e.target.value })}
+                  placeholder="https://fb.me/6L2QqVYgY"
+                  className={`${inputClass} break-all`}
+                />
+              </DetailField>
+
+              <DetailField label="Facebook ad link 2">
+                <input
+                  type="url"
+                  value={row.adLink2}
+                  onChange={e => onUpdate(row.id, { adLink2: e.target.value })}
+                  placeholder="https://fb.me/optional-second-link"
+                  className={`${inputClass} break-all`}
+                />
+              </DetailField>
+              <p className="text-[10px] text-ink-400">
+                Only needed for older setups. Ad ID matching is preferred.
+              </p>
+            </div>
+          </details>
 
           <DetailField label="Description">
             <textarea

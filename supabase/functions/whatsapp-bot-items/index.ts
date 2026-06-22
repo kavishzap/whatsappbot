@@ -1,7 +1,7 @@
 import { getServiceClient, handleOptions, jsonResponse } from '../_shared/http.ts'
 
 const LIST_COLUMNS =
-  'id, ad_link, ad_link_2, product_name, price, description, company, sort_order, created_at, updated_at'
+  'id, ad_link, ad_link_2, ad_id, ad_id_2, product_name, price, description, company, sort_order, created_at, updated_at'
 const COLOR_COLUMNS = 'id, color_name, color_hex, sort_order'
 
 interface ColorInput {
@@ -144,6 +144,8 @@ Deno.serve(async (req) => {
         .insert({
           ad_link: body.ad_link?.trim() || null,
           ad_link_2: body.ad_link_2?.trim() || null,
+          ad_id: body.ad_id?.trim() || null,
+          ad_id_2: body.ad_id_2?.trim() || null,
           product_name: body.product_name ?? body.name ?? null,
           price: body.price != null ? String(body.price) : null,
           image_base64: body.image_base64 ?? null,
@@ -172,6 +174,8 @@ Deno.serve(async (req) => {
       const updates: Record<string, unknown> = {}
       if (body.ad_link !== undefined) updates.ad_link = body.ad_link?.trim() || null
       if (body.ad_link_2 !== undefined) updates.ad_link_2 = body.ad_link_2?.trim() || null
+      if (body.ad_id !== undefined) updates.ad_id = body.ad_id?.trim() || null
+      if (body.ad_id_2 !== undefined) updates.ad_id_2 = body.ad_id_2?.trim() || null
       if (body.product_name !== undefined) updates.product_name = body.product_name
       if (body.name !== undefined) updates.product_name = body.name
       if (body.price !== undefined) updates.price = body.price != null ? String(body.price) : null

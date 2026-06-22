@@ -26,6 +26,8 @@ interface BotRow {
   sort_order: number
   productName: string
   price: string
+  adId: string
+  adId2: string
   adLink: string
   adLink2: string
   hasImage: boolean
@@ -43,6 +45,8 @@ function createEmptyRow(): ProductDetailRow {
     id: crypto.randomUUID(),
     productName: '',
     price: '',
+    adId: '',
+    adId2: '',
     adLink: '',
     adLink2: '',
     imageBase64: null,
@@ -61,6 +65,8 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
     sort_order: item.sort_order ?? 0,
     productName: item.product_name ?? '',
     price: item.price != null ? String(item.price) : '',
+    adId: item.ad_id ?? '',
+    adId2: item.ad_id_2 ?? '',
     adLink: item.ad_link ?? '',
     adLink2: item.ad_link_2 ?? '',
     hasImage,
@@ -80,6 +86,8 @@ function matchesProductSearch(row: BotRow, query: string): boolean {
   if (!q) return true
   return (
     row.productName.toLowerCase().includes(q) ||
+    row.adId.toLowerCase().includes(q) ||
+    row.adId2.toLowerCase().includes(q) ||
     row.adLink.toLowerCase().includes(q) ||
     row.adLink2.toLowerCase().includes(q) ||
     row.description.toLowerCase().includes(q)
@@ -107,8 +115,10 @@ export default function WhatsAppBotPage() {
 
   const stats = useMemo(() => {
     const withPhotos = rows.filter(r => r.hasImage).length
-    const withLinks = rows.filter(r => r.adLink.trim() || r.adLink2.trim()).length
-    return { total: rows.length, withPhotos, withLinks }
+    const withAds = rows.filter(
+      r => r.adId.trim() || r.adId2.trim() || r.adLink.trim() || r.adLink2.trim()
+    ).length
+    return { total: rows.length, withPhotos, withAds }
   }, [rows])
 
   const loadItems = useCallback(async () => {
@@ -156,6 +166,8 @@ export default function WhatsAppBotPage() {
 
     const payload = {
       company: 'spark' as const,
+      ad_id: modalRow.adId.trim() || null,
+      ad_id_2: modalRow.adId2.trim() || null,
       ad_link: modalRow.adLink.trim() || null,
       ad_link_2: modalRow.adLink2.trim() || null,
       product_name: modalRow.productName.trim(),
@@ -259,20 +271,20 @@ export default function WhatsAppBotPage() {
         render: row => <span className="text-ink-800">{formatPrice(row.price)}</span>,
       },
       {
-        key: 'link',
-        header: 'Ad link',
+        key: 'adId',
+        header: 'Ad ID',
         render: row => (
-          <span className="text-ink-500 truncate block text-xs" title={row.adLink || undefined}>
-            {row.adLink || '—'}
+          <span className="text-ink-500 truncate block text-xs tabular-nums" title={row.adId || undefined}>
+            {row.adId || '—'}
           </span>
         ),
       },
       {
-        key: 'link2',
-        header: 'Ad link 2',
+        key: 'adId2',
+        header: 'Ad ID 2',
         render: row => (
-          <span className="text-ink-500 truncate block text-xs" title={row.adLink2 || undefined}>
-            {row.adLink2 || '—'}
+          <span className="text-ink-500 truncate block text-xs tabular-nums" title={row.adId2 || undefined}>
+            {row.adId2 || '—'}
           </span>
         ),
       },
@@ -388,7 +400,7 @@ export default function WhatsAppBotPage() {
         gridTemplateColumns={GRID_COLS}
         minWidth="1080px"
         defaultPageSize={100}
-        searchPlaceholder="Search product, link, description…"
+        searchPlaceholder="Search product, ad ID, description…"
         searchFilter={matchesProductSearch}
         onRowClick={openEditModal}
         rowReorder={{
@@ -420,8 +432,10 @@ export default function WhatsAppBotPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-ink-900 truncate">{row.productName || 'Untitled product'}</p>
                 <p className="text-sm text-ink-600 tabular-nums mt-0.5">{formatPrice(row.price)}</p>
-                {row.adLink && (
-                  <p className="text-xs text-ink-400 truncate mt-0.5">{row.adLink}</p>
+                {(row.adId || row.adId2) && (
+                  <p className="text-xs text-ink-400 truncate mt-0.5 tabular-nums">
+                    {row.adId || row.adId2}
+                  </p>
                 )}
               </div>
               <ChevronIcon className="w-4 h-4 text-ink-300 shrink-0" />
