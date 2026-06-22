@@ -397,7 +397,6 @@ async function handleProductSelection(phone: string, input: MessageInput): Promi
 
   const productId = parseProductSelection(input)
   if (!productId) {
-    await sendWhatsAppText(phone, 'Please select a product from the list below.')
     await sendSodamaxProductList(phone)
     return
   }

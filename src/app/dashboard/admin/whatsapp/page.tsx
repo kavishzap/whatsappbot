@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/phone'
+import {
+  DEFAULT_WHATSAPP_TEST_TEMPLATES,
+  welcomeTemplateLabel,
+} from '@/lib/whatsapp-test-templates'
 import type { WhatsAppLine } from '@/lib/whatsapp-line'
 
 function TestPanel({
@@ -67,7 +71,7 @@ function TestPanel({
 
       const via =
         data.sentVia === 'template'
-          ? ' (template — works even if they have not messaged recently)'
+          ? ' (welcome template + menu — works even if they have not messaged recently)'
           : ''
       toast.success(`Sent to ${data.to} via ${data.line}${via}`)
     } catch {
@@ -107,9 +111,9 @@ function TestPanel({
             autoComplete="tel"
           />
           <p className="text-xs text-ink-400 mt-1.5">
-            Mauritius numbers are auto-formatted with country code 230. Test sends use the
-            approved <span className="font-medium">hello_world</span> template so any WhatsApp
-            number can be reached.
+            Mauritius numbers are auto-formatted with country code 230. Test sends use the approved{' '}
+            <span className="font-medium">{welcomeTemplateLabel(line)}</span> template, then the
+            same welcome menu and buttons as the live bot.
           </p>
         </div>
 
@@ -157,13 +161,13 @@ export default function WhatsAppIntegrationPage() {
         <TestPanel
           line="spark"
           title="Spark test"
-          description="Sends a test message from the Spark Distributors WhatsApp number."
+          description={`Sends the ${DEFAULT_WHATSAPP_TEST_TEMPLATES.spark} template and Spark welcome menu from the Spark Distributors WhatsApp number.`}
           accent="spark"
         />
         <TestPanel
           line="sodamax"
           title="SodaMax test"
-          description="Sends a test message from the SodaMax WhatsApp number."
+          description={`Sends the ${DEFAULT_WHATSAPP_TEST_TEMPLATES.sodamax} template and SodaMax welcome menu from the SodaMax WhatsApp number.`}
           accent="soda"
         />
       </div>

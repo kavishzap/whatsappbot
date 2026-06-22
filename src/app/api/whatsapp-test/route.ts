@@ -8,19 +8,13 @@ import {
   sendWhatsAppText,
 } from '@/lib/whatsapp'
 import { runWithWhatsAppLine, LINE_LABELS, type WhatsAppLine } from '@/lib/whatsapp-line'
+import { sendWelcomeMenu } from '@/lib/welcome-menu'
+import {
+  resolveWhatsAppTestTemplateLanguage,
+  resolveWhatsAppTestTemplateName,
+} from '@/lib/whatsapp-test-templates'
 
 const DEFAULT_MESSAGE = 'Hello'
-
-function testTemplateName(line: WhatsAppLine): string {
-  if (line === 'sodamax') {
-    return process.env.WHATSAPP_TEST_TEMPLATE_2?.trim() || process.env.WHATSAPP_TEST_TEMPLATE?.trim() || 'hello_world'
-  }
-  return process.env.WHATSAPP_TEST_TEMPLATE?.trim() || 'hello_world'
-}
-
-function testTemplateLanguage(): string {
-  return process.env.WHATSAPP_TEST_TEMPLATE_LANGUAGE?.trim() || 'en_US'
-}
 
 async function requireAuth() {
   const supabase = createAuthClient()
@@ -76,8 +70,9 @@ export async function POST(request: NextRequest) {
 
     await runWithWhatsAppLine(line, async () => {
       if (useTemplate) {
-        templateName = testTemplateName(line)
-        await sendWhatsAppTemplate(to, templateName, testTemplateLanguage())
+        templateName = resolveWhatsAppTestTemplateName(line)
+        await sendWhatsAppTemplate(to, templateName, resolveWhatsAppTestTemplateLanguage())
+        await sendWelcomeMenu(to, line)
         return
       }
 
@@ -89,7 +84,9 @@ export async function POST(request: NextRequest) {
       success: true,
       to,
       message:
-        sentVia === 'template' && templateName ? `Template: ${templateName}` : message,
+        sentVia === 'template' && templateName
+          ? `Template: ${templateName} + welcome menu`
+          : message,
       line: LINE_LABELS[line],
       sentVia,
     })

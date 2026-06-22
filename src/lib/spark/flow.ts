@@ -576,7 +576,6 @@ async function handleProductSelection(
   const productId = parseProductSelection(input)
 
   if (!productId) {
-    await sendWhatsAppText(phone, 'Please select a product from the list below.')
     await sendProductList(phone)
     return
   }
@@ -610,7 +609,6 @@ async function handleAddMoreProductSelection(
   const productId = parseProductSelection(input)
 
   if (!productId) {
-    await sendWhatsAppText(phone, 'Please select a product from the list below.')
     await sendProductList(phone, 0, { showBackToSummary: true })
     return
   }
