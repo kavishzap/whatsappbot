@@ -64,7 +64,7 @@ import {
   computeOrderTotal,
   PROCESS_ERROR_MESSAGE,
 } from './constants'
-import { scheduleFlavourPromo } from '@/lib/spark/promo-schedule'
+import { scheduleSodamaxFlavourPromo } from './promo-schedule'
 import { CUSTOM_QUANTITY_MESSAGE, QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
 import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
 import { buildCityIdPatch } from '@/lib/spark/match-city'
@@ -1111,8 +1111,8 @@ async function handleConfirm(phone: string, session: SodamaxSession, input: Mess
       { id: 'sm_other_query', title: 'Other Query' }
     )
     await resetSession(phone)
-    void scheduleFlavourPromo(phone, 'sodamax').catch(err =>
-      console.error('scheduleFlavourPromo failed:', err)
+    void scheduleSodamaxFlavourPromo(phone).catch(err =>
+      console.error('scheduleSodamaxFlavourPromo failed:', err)
     )
     return
   }

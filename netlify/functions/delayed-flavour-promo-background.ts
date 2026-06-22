@@ -21,7 +21,7 @@ export default async (req: Request) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  let body: { phone?: string; company?: string; delayMs?: number }
+  let body: { phone?: string; delayMs?: number }
   try {
     body = await req.json()
   } catch {
@@ -29,10 +29,9 @@ export default async (req: Request) => {
   }
 
   const phone = body.phone?.trim()
-  const company = body.company
   const delayMs = typeof body.delayMs === 'number' ? body.delayMs : 60_000
 
-  if (!phone || (company !== 'spark' && company !== 'sodamax')) {
+  if (!phone) {
     return new Response('Invalid payload', { status: 400 })
   }
 
@@ -50,7 +49,7 @@ export default async (req: Request) => {
       Authorization: `Bearer ${expected}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ phone, company }),
+    body: JSON.stringify({ phone }),
   })
 
   const text = await res.text()

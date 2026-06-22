@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { isCronAuthorized } from '@/lib/cron-auth'
-import { processScheduledPromos } from '@/lib/spark/promo-schedule'
+import { processScheduledPromos } from '@/lib/sodamax/promo-schedule'
 
-/** Call every minute to send due post-order promos (Spark and SodaMax flavour campaigns). */
+/** Call every minute to send due SodaMax post-order promos. */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })

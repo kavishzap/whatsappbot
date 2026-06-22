@@ -1,4 +1,4 @@
--- Delayed post-order promos (Spark flavour campaign 60s after thank-you).
+-- Delayed SodaMax post-order promos (MONIN campaign 60s after thank-you).
 CREATE TABLE IF NOT EXISTS public.whatsapp_scheduled_promos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   phone text NOT NULL,

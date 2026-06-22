@@ -1,6 +1,6 @@
 import { handleChatbotMessage } from '@/lib/spark/flow'
 import { handleSodamaxMessage } from '@/lib/sodamax/flow'
-import { processScheduledPromos } from '@/lib/spark/promo-schedule'
+import { processScheduledPromos } from '@/lib/sodamax/promo-schedule'
 import {
   OTHER_QUERY_CTA_LABEL,
   PROCESS_ERROR_MESSAGE,

@@ -1,13 +1,12 @@
 import { getServiceClient } from '@/lib/supabase/admin'
 import { getCronSecret } from '@/lib/cron-auth'
 import { sendSodamaxFlavourPromo } from '@/lib/sodamax/promo'
-import { runWithWhatsAppLine, type WhatsAppLine } from '@/lib/whatsapp-line'
+import { runWithWhatsAppLine } from '@/lib/whatsapp-line'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
 
-export const FLAVOUR_PROMO_DELAY_MS = 60_000
+export const SODAMAX_FLAVOUR_PROMO_DELAY_MS = 60_000
 
-/** @deprecated Use FLAVOUR_PROMO_DELAY_MS */
-export const SPARK_FLAVOUR_PROMO_DELAY_MS = FLAVOUR_PROMO_DELAY_MS
+const COMPANY = 'sodamax' as const
 
 function getSiteUrl(): string {
   return (
@@ -17,26 +16,26 @@ function getSiteUrl(): string {
   )
 }
 
-export async function deliverFlavourPromo(phone: string, company: WhatsAppLine): Promise<void> {
-  await runWithWhatsAppLine(company, async () => {
+export async function deliverScheduledSodamaxFlavourPromo(phone: string): Promise<void> {
+  await runWithWhatsAppLine('sodamax', async () => {
     await sendSodamaxFlavourPromo(phone)
   })
 }
 
-async function queueFlavourPromoInDb(phone: string, company: WhatsAppLine): Promise<void> {
+async function queueFlavourPromoInDb(phone: string): Promise<void> {
   const supabase = getServiceClient()
-  const sendAt = new Date(Date.now() + FLAVOUR_PROMO_DELAY_MS).toISOString()
+  const sendAt = new Date(Date.now() + SODAMAX_FLAVOUR_PROMO_DELAY_MS).toISOString()
 
   await supabase
     .from('whatsapp_scheduled_promos')
     .delete()
     .eq('phone', phone)
-    .eq('company', company)
+    .eq('company', COMPANY)
     .is('sent_at', null)
 
   const { error } = await supabase.from('whatsapp_scheduled_promos').insert({
     phone,
-    company,
+    company: COMPANY,
     kind: 'flavour_promo',
     send_at: sendAt,
   })
@@ -44,10 +43,7 @@ async function queueFlavourPromoInDb(phone: string, company: WhatsAppLine): Prom
   if (error) throw error
 }
 
-async function invokeDelayedPromoBackground(
-  phone: string,
-  company: WhatsAppLine
-): Promise<boolean> {
+async function invokeDelayedPromoBackground(phone: string): Promise<boolean> {
   const siteUrl = getSiteUrl()
   const secret = getCronSecret()
   if (!siteUrl || !secret) return false
@@ -58,7 +54,7 @@ async function invokeDelayedPromoBackground(
       Authorization: `Bearer ${secret}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ phone, company, delayMs: FLAVOUR_PROMO_DELAY_MS }),
+    body: JSON.stringify({ phone, delayMs: SODAMAX_FLAVOUR_PROMO_DELAY_MS }),
   })
 
   if (!res.ok) {
@@ -73,32 +69,27 @@ async function invokeDelayedPromoBackground(
   return true
 }
 
-/** Queue MONIN / Refill & Products promo 60s after order thank-you. */
-export async function scheduleFlavourPromo(phone: string, company: WhatsAppLine): Promise<void> {
+/** Queue SodaMax MONIN promo 60s after order thank-you. */
+export async function scheduleSodamaxFlavourPromo(phone: string): Promise<void> {
   if (process.env.NODE_ENV === 'development' && !getSiteUrl()) {
     setTimeout(() => {
-      void deliverFlavourPromo(phone, company).catch(err => {
+      void deliverScheduledSodamaxFlavourPromo(phone).catch(err => {
         if (!isWhatsAppAuthError(err)) {
-          console.error(`Dev delayed ${company} promo failed:`, err)
+          console.error('Dev delayed SodaMax promo failed:', err)
         }
       })
-    }, FLAVOUR_PROMO_DELAY_MS)
+    }, SODAMAX_FLAVOUR_PROMO_DELAY_MS)
     return
   }
 
-  const invoked = await invokeDelayedPromoBackground(phone, company).catch(err => {
+  const invoked = await invokeDelayedPromoBackground(phone).catch(err => {
     console.error('invokeDelayedPromoBackground error:', err)
     return false
   })
 
   if (invoked) return
 
-  await queueFlavourPromoInDb(phone, company)
-}
-
-/** @deprecated Use scheduleFlavourPromo(phone, 'spark') */
-export async function scheduleSparkFlavourPromo(phone: string): Promise<void> {
-  return scheduleFlavourPromo(phone, 'spark')
+  await queueFlavourPromoInDb(phone)
 }
 
 export async function processScheduledPromos(): Promise<{
@@ -111,7 +102,8 @@ export async function processScheduledPromos(): Promise<{
 
   const { data, error } = await supabase
     .from('whatsapp_scheduled_promos')
-    .select('id, phone, company')
+    .select('id, phone')
+    .eq('company', COMPANY)
     .is('sent_at', null)
     .lte('send_at', now)
     .order('send_at', { ascending: true })
@@ -125,9 +117,7 @@ export async function processScheduledPromos(): Promise<{
 
   for (const row of rows) {
     try {
-      if (row.company === 'spark' || row.company === 'sodamax') {
-        await deliverFlavourPromo(row.phone, row.company)
-      }
+      await deliverScheduledSodamaxFlavourPromo(row.phone)
 
       await supabase
         .from('whatsapp_scheduled_promos')
@@ -146,7 +136,7 @@ export async function processScheduledPromos(): Promise<{
       if (isWhatsAppAuthError(err)) {
         console.error('WhatsApp auth error sending scheduled promo:', message)
       } else {
-        console.error('Scheduled promo failed for', row.company, row.phone, err)
+        console.error('Scheduled SodaMax promo failed for', row.phone, err)
       }
     }
   }

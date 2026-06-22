@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import { isCronAuthorized } from '@/lib/cron-auth'
-import { deliverFlavourPromo } from '@/lib/spark/promo-schedule'
-import type { WhatsAppLine } from '@/lib/whatsapp-line'
+import { deliverScheduledSodamaxFlavourPromo } from '@/lib/sodamax/promo-schedule'
 
-/** Internal endpoint used by the delayed promo background worker. */
+/** Internal endpoint used by the delayed SodaMax promo background worker. */
 export async function POST(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { phone?: string; company?: string }
+  let body: { phone?: string }
   try {
     body = await request.json()
   } catch {
@@ -17,15 +16,14 @@ export async function POST(request: Request) {
   }
 
   const phone = body.phone?.trim()
-  const company = body.company
 
-  if (!phone || (company !== 'spark' && company !== 'sodamax')) {
+  if (!phone) {
     return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 })
   }
 
   try {
-    await deliverFlavourPromo(phone, company as WhatsAppLine)
-    return NextResponse.json({ success: true, phone, company })
+    await deliverScheduledSodamaxFlavourPromo(phone)
+    return NextResponse.json({ success: true, phone, company: 'sodamax' })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Promo delivery failed'
     console.error('deliver-promo error:', err)
