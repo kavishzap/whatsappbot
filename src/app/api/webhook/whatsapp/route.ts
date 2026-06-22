@@ -1,5 +1,6 @@
 import { handleChatbotMessage } from '@/lib/spark/flow'
 import { handleSodamaxMessage } from '@/lib/sodamax/flow'
+import { processScheduledPromos } from '@/lib/spark/promo-schedule'
 import {
   OTHER_QUERY_CTA_LABEL,
   PROCESS_ERROR_MESSAGE,
@@ -88,6 +89,9 @@ export async function POST(request: Request) {
   })
 
   if (!message) {
+    void processScheduledPromos().catch(err =>
+      console.error('processScheduledPromos failed:', err)
+    )
     return new Response('OK', { status: 200 })
   }
 
@@ -118,6 +122,10 @@ export async function POST(request: Request) {
       })
     }
   })
+
+  void processScheduledPromos().catch(err =>
+    console.error('processScheduledPromos failed:', err)
+  )
 
   return new Response('OK', { status: 200 })
 }
