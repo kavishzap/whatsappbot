@@ -1,47 +1,55 @@
 import { getServiceClient } from '@/lib/supabase/admin'
 import { sendSodamaxFlavourPromo } from '@/lib/sodamax/promo'
-import { runWithWhatsAppLine } from '@/lib/whatsapp-line'
+import { runWithWhatsAppLine, type WhatsAppLine } from '@/lib/whatsapp-line'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
 
-export const SPARK_FLAVOUR_PROMO_DELAY_MS = 60_000
+export const FLAVOUR_PROMO_DELAY_MS = 60_000
 
-export async function deliverSparkFlavourPromo(phone: string): Promise<void> {
-  await runWithWhatsAppLine('spark', async () => {
+/** @deprecated Use FLAVOUR_PROMO_DELAY_MS */
+export const SPARK_FLAVOUR_PROMO_DELAY_MS = FLAVOUR_PROMO_DELAY_MS
+
+export async function deliverFlavourPromo(phone: string, company: WhatsAppLine): Promise<void> {
+  await runWithWhatsAppLine(company, async () => {
     await sendSodamaxFlavourPromo(phone)
   })
 }
 
-/** Queue MONIN / Refill & Products promo 60s after Spark order thank-you. */
-export async function scheduleSparkFlavourPromo(phone: string): Promise<void> {
+/** Queue MONIN / Refill & Products promo 60s after order thank-you. */
+export async function scheduleFlavourPromo(phone: string, company: WhatsAppLine): Promise<void> {
   if (process.env.NODE_ENV === 'development') {
     setTimeout(() => {
-      void deliverSparkFlavourPromo(phone).catch(err => {
+      void deliverFlavourPromo(phone, company).catch(err => {
         if (!isWhatsAppAuthError(err)) {
-          console.error('Dev delayed Spark promo failed:', err)
+          console.error(`Dev delayed ${company} promo failed:`, err)
         }
       })
-    }, SPARK_FLAVOUR_PROMO_DELAY_MS)
+    }, FLAVOUR_PROMO_DELAY_MS)
     return
   }
 
   const supabase = getServiceClient()
-  const sendAt = new Date(Date.now() + SPARK_FLAVOUR_PROMO_DELAY_MS).toISOString()
+  const sendAt = new Date(Date.now() + FLAVOUR_PROMO_DELAY_MS).toISOString()
 
   await supabase
     .from('whatsapp_scheduled_promos')
     .delete()
     .eq('phone', phone)
-    .eq('company', 'spark')
+    .eq('company', company)
     .is('sent_at', null)
 
   const { error } = await supabase.from('whatsapp_scheduled_promos').insert({
     phone,
-    company: 'spark',
+    company,
     kind: 'flavour_promo',
     send_at: sendAt,
   })
 
   if (error) throw error
+}
+
+/** @deprecated Use scheduleFlavourPromo(phone, 'spark') */
+export async function scheduleSparkFlavourPromo(phone: string): Promise<void> {
+  return scheduleFlavourPromo(phone, 'spark')
 }
 
 export async function processScheduledPromos(): Promise<{
@@ -68,8 +76,8 @@ export async function processScheduledPromos(): Promise<{
 
   for (const row of rows) {
     try {
-      if (row.company === 'spark') {
-        await deliverSparkFlavourPromo(row.phone)
+      if (row.company === 'spark' || row.company === 'sodamax') {
+        await deliverFlavourPromo(row.phone, row.company)
       }
 
       await supabase

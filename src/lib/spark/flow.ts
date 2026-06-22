@@ -982,7 +982,7 @@ async function handleConfirm(
       { id: 'menu_other_query', title: 'Other Query' }
     )
     await resetSession(phone)
-    await scheduleSparkFlavourPromo(phone).catch(err =>
+    void scheduleSparkFlavourPromo(phone).catch(err =>
       console.error('scheduleSparkFlavourPromo failed:', err)
     )
     return

@@ -2,19 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
 import { isAllowedRole } from '@/lib/auth'
 import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/phone'
-import {
-  isWhatsAppAuthError,
-  sendWhatsAppTemplate,
-  sendWhatsAppText,
-} from '@/lib/whatsapp'
+import { isWhatsAppAuthError } from '@/lib/whatsapp'
 import { runWithWhatsAppLine, LINE_LABELS, type WhatsAppLine } from '@/lib/whatsapp-line'
 import { sendWelcomeMenu } from '@/lib/welcome-menu'
-import {
-  resolveWhatsAppTestTemplateLanguage,
-  resolveWhatsAppTestTemplateName,
-} from '@/lib/whatsapp-test-templates'
-
-const DEFAULT_MESSAGE = 'Hello'
 
 async function requireAuth() {
   const supabase = createAuthClient()
@@ -41,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { line?: string; phone?: string; message?: string; mode?: string }
+  let body: { line?: string; phone?: string }
   try {
     body = await request.json()
   } catch {
@@ -50,8 +40,6 @@ export async function POST(request: NextRequest) {
 
   const line: WhatsAppLine = body.line === 'sodamax' ? 'sodamax' : 'spark'
   const to = normalizeWhatsAppPhone(body.phone ?? '')
-  const message = body.message?.trim() || DEFAULT_MESSAGE
-  const useTemplate = body.mode !== 'text'
 
   if (!isPlausibleWhatsAppPhone(to)) {
     return NextResponse.json(
@@ -65,30 +53,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let sentVia: 'template' | 'text' = useTemplate ? 'template' : 'text'
-    let templateName: string | undefined
-
     await runWithWhatsAppLine(line, async () => {
-      if (useTemplate) {
-        templateName = resolveWhatsAppTestTemplateName(line)
-        await sendWhatsAppTemplate(to, templateName, resolveWhatsAppTestTemplateLanguage())
-        await sendWelcomeMenu(to, line)
-        return
-      }
-
-      sentVia = 'text'
-      await sendWhatsAppText(to, message)
+      await sendWelcomeMenu(to, line)
     })
 
     return NextResponse.json({
       success: true,
       to,
-      message:
-        sentVia === 'template' && templateName
-          ? `Template: ${templateName} + welcome menu`
-          : message,
       line: LINE_LABELS[line],
-      sentVia,
+      sentVia: 'welcome',
     })
   } catch (error) {
     if (isWhatsAppAuthError(error)) {

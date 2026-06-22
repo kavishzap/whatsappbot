@@ -12,7 +12,7 @@ function isAuthorized(request: Request): boolean {
   return url.searchParams.get('secret') === secret
 }
 
-/** Call every minute to send due post-order promos (e.g. Spark flavour campaign). */
+/** Call every minute to send due post-order promos (Spark and SodaMax flavour campaigns). */
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })

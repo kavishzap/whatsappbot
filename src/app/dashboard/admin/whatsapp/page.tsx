@@ -3,10 +3,6 @@
 import { useState } from 'react'
 import { useToast } from '@/components/ui/toast'
 import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/phone'
-import {
-  DEFAULT_WHATSAPP_TEST_TEMPLATES,
-  welcomeTemplateLabel,
-} from '@/lib/whatsapp-test-templates'
 import type { WhatsAppLine } from '@/lib/whatsapp-line'
 
 function TestPanel({
@@ -61,7 +57,7 @@ function TestPanel({
         to?: string
         message?: string
         line?: string
-        sentVia?: 'template' | 'text'
+        sentVia?: 'welcome'
       }
 
       if (!res.ok || !data.success) {
@@ -69,11 +65,7 @@ function TestPanel({
         return
       }
 
-      const via =
-        data.sentVia === 'template'
-          ? ' (welcome template + menu — works even if they have not messaged recently)'
-          : ''
-      toast.success(`Sent to ${data.to} via ${data.line}${via}`)
+      toast.success(`Welcome menu sent to ${data.to} via ${data.line}`)
     } catch {
       toast.error('Failed to send test message')
     } finally {
@@ -111,9 +103,9 @@ function TestPanel({
             autoComplete="tel"
           />
           <p className="text-xs text-ink-400 mt-1.5">
-            Mauritius numbers are auto-formatted with country code 230. Test sends use the approved{' '}
-            <span className="font-medium">{welcomeTemplateLabel(line)}</span> template, then the
-            same welcome menu and buttons as the live bot.
+            Mauritius numbers are auto-formatted with country code 230. Sends the same welcome
+            message and menu buttons as the live bot. The recipient must have messaged this line
+            within the last 24 hours.
           </p>
         </div>
 
@@ -161,13 +153,13 @@ export default function WhatsAppIntegrationPage() {
         <TestPanel
           line="spark"
           title="Spark test"
-          description={`Sends the ${DEFAULT_WHATSAPP_TEST_TEMPLATES.spark} template and Spark welcome menu from the Spark Distributors WhatsApp number.`}
+          description="Sends the Spark welcome message and menu buttons from the Spark Distributors WhatsApp number."
           accent="spark"
         />
         <TestPanel
           line="sodamax"
           title="SodaMax test"
-          description={`Sends the ${DEFAULT_WHATSAPP_TEST_TEMPLATES.sodamax} template and SodaMax welcome menu from the SodaMax WhatsApp number.`}
+          description="Sends the SodaMax welcome message and menu buttons from the SodaMax WhatsApp number."
           accent="soda"
         />
       </div>

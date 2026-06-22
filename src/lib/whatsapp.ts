@@ -43,7 +43,7 @@ export function formatWhatsAppSendError(result: {
     message.toLowerCase().includes('24 hours') ||
     message.toLowerCase().includes('re-engagement')
   ) {
-    return 'This number has not messaged your WhatsApp line recently. Use a template message (configured automatically for test sends).'
+    return 'This number has not messaged your WhatsApp line in the last 24 hours. Ask them to send a message first, then try again.'
   }
 
   if (code === 131026 || message.toLowerCase().includes('not a valid whatsapp')) {
