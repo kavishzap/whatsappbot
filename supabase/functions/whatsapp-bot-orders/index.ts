@@ -414,6 +414,66 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400)
       }
 
+      const bulkAction =
+        typeof body.bulk_action === 'string' ? body.bulk_action.trim().toLowerCase() : ''
+      const bulkIds = Array.isArray(body.ids)
+        ? body.ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        : []
+
+      if (bulkAction && bulkIds.length > 0) {
+        const company = parseCompany(body.company as string)
+        if (!company) {
+          return jsonResponse(
+            { success: false, error: 'Missing or invalid company (spark|sodamax)' },
+            400
+          )
+        }
+
+        if (bulkAction === 'approve') {
+          const { data, error } = await supabase
+            .from('whatsapp_bot_orders')
+            .update({
+              status: 'approved',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('company', company)
+            .in('id', bulkIds)
+            .select('id')
+
+          if (error) throw error
+
+          return jsonResponse({
+            success: true,
+            data: { affected: data?.length ?? 0, ids: (data ?? []).map(row => row.id) },
+          })
+        }
+
+        if (bulkAction === 'delete') {
+          const { error: itemsError } = await supabase
+            .from('whatsapp_bot_orders_items')
+            .delete()
+            .in('order_id', bulkIds)
+
+          if (itemsError) throw itemsError
+
+          const { data, error } = await supabase
+            .from('whatsapp_bot_orders')
+            .delete()
+            .eq('company', company)
+            .in('id', bulkIds)
+            .select('id')
+
+          if (error) throw error
+
+          return jsonResponse({
+            success: true,
+            data: { affected: data?.length ?? 0, ids: (data ?? []).map(row => row.id) },
+          })
+        }
+
+        return jsonResponse({ success: false, error: 'Invalid bulk_action' }, 400)
+      }
+
       const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, notes, items: rawItems } =
         body
 

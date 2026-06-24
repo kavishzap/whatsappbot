@@ -23,8 +23,8 @@ const DEFAULT_SESSION = {
 const REMINDER_MAX_COUNT = 3
 const REMINDER_TIMEZONE = 'Indian/Mauritius'
 
-/** Sessions still in the funnel before a draft order is created. */
-const PRE_DRAFT_IGNORED_STATES = ['idle', 'awaiting_menu_selection']
+/** Sessions with no order draft yet — includes welcome menu after first message. */
+const PRE_DRAFT_IGNORED_STATES = ['idle']
 
 function getMauritiusDateKey(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {

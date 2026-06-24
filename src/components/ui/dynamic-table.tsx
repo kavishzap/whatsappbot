@@ -41,6 +41,11 @@ export type RowReorderConfig<T> = {
   disabled?: boolean
 }
 
+export type RowSelectionConfig = {
+  selectedIds: ReadonlySet<string>
+  onChange: (selectedIds: Set<string>) => void
+}
+
 interface DynamicTableProps<T> {
   data: T[]
   columns: DynamicTableColumn<T>[]
@@ -55,6 +60,7 @@ interface DynamicTableProps<T> {
   onClearFilters?: () => void
   toolbar?: ReactNode
   onRowClick?: (row: T) => void
+  rowSelection?: RowSelectionConfig
   rowReorder?: RowReorderConfig<T>
   emptyState?: ReactNode
   defaultPageSize?: number
@@ -211,6 +217,32 @@ function TableSpinner() {
   )
 }
 
+function RowSelectCheckbox({
+  checked,
+  indeterminate = false,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean
+  indeterminate?: boolean
+  onChange: (checked: boolean) => void
+  ariaLabel: string
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      ref={el => {
+        if (el) el.indeterminate = indeterminate
+      }}
+      onChange={event => onChange(event.target.checked)}
+      onClick={event => event.stopPropagation()}
+      aria-label={ariaLabel}
+      className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+    />
+  )
+}
+
 function DefaultNoResults({ onClear }: { onClear: () => void }) {
   return (
     <div className="empty-state py-10">
@@ -236,6 +268,7 @@ export function DynamicTable<T>({
   onClearFilters,
   toolbar,
   onRowClick,
+  rowSelection,
   rowReorder,
   emptyState,
   defaultPageSize = 10,
@@ -424,6 +457,65 @@ export function DynamicTable<T>({
     return ''
   }
 
+  const filteredRowIds = useMemo(() => sortedData.map(row => rowKey(row)), [sortedData, rowKey])
+
+  const allFilteredSelected =
+    filteredRowIds.length > 0 && filteredRowIds.every(id => rowSelection?.selectedIds.has(id))
+
+  const someFilteredSelected =
+    Boolean(rowSelection) &&
+    filteredRowIds.some(id => rowSelection?.selectedIds.has(id)) &&
+    !allFilteredSelected
+
+  const toggleRowSelection = useCallback(
+    (id: string, checked: boolean) => {
+      if (!rowSelection) return
+      const next = new Set(rowSelection.selectedIds)
+      if (checked) next.add(id)
+      else next.delete(id)
+      rowSelection.onChange(next)
+    },
+    [rowSelection]
+  )
+
+  const toggleAllFilteredSelection = useCallback(
+    (checked: boolean) => {
+      if (!rowSelection) return
+      const next = new Set(rowSelection.selectedIds)
+      if (checked) {
+        filteredRowIds.forEach(id => next.add(id))
+      } else {
+        filteredRowIds.forEach(id => next.delete(id))
+      }
+      rowSelection.onChange(next)
+    },
+    [rowSelection, filteredRowIds]
+  )
+
+  const renderSelectionHeader = () => {
+    if (!rowSelection) return null
+    return (
+      <RowSelectCheckbox
+        checked={allFilteredSelected}
+        indeterminate={someFilteredSelected}
+        onChange={toggleAllFilteredSelection}
+        ariaLabel="Select all filtered rows"
+      />
+    )
+  }
+
+  const renderSelectionCell = (row: T) => {
+    if (!rowSelection) return null
+    const id = rowKey(row)
+    return (
+      <RowSelectCheckbox
+        checked={rowSelection.selectedIds.has(id)}
+        onChange={checked => toggleRowSelection(id, checked)}
+        ariaLabel="Select row"
+      />
+    )
+  }
+
   const renderHeaderCell = (col: DynamicTableColumn<T>) => {
     const align = col.align ?? 'left'
     const wrapperClass = headerJustifyClass(align)
@@ -458,9 +550,14 @@ export function DynamicTable<T>({
             <div
               key={rowKey(row)}
               {...getRowDropProps(row)}
-              className={getRowReorderClassName(row)}
+              className={mergeClassNames('flex items-start gap-2', getRowReorderClassName(row))}
             >
-              {mobileCardRender(row, rangeStart + i - 1)}
+              {rowSelection && (
+                <div className="shrink-0 pt-2 pl-2">{renderSelectionCell(row)}</div>
+              )}
+              <div className="min-w-0 flex-1">
+                {mobileCardRender(row, rangeStart + i - 1)}
+              </div>
             </div>
           ))}
         </div>
@@ -472,6 +569,9 @@ export function DynamicTable<T>({
             className="grid gap-2 px-3 py-2 panel-header items-center sticky top-0 z-10"
             style={{ gridTemplateColumns }}
           >
+            {rowSelection && (
+              <span className="flex items-center justify-center">{renderSelectionHeader()}</span>
+            )}
             {columns.map(col => (
               <span
                 key={col.key}
@@ -494,6 +594,9 @@ export function DynamicTable<T>({
                 style={{ gridTemplateColumns }}
                 {...getRowDropProps(row)}
               >
+                {rowSelection && (
+                  <div className="flex items-center justify-center">{renderSelectionCell(row)}</div>
+                )}
                 {columns.map(col => (
                   <div
                     key={col.key}
@@ -513,6 +616,7 @@ export function DynamicTable<T>({
         >
           {fitScreen && (
             <colgroup>
+              {rowSelection && <col style={{ width: '1%' }} />}
               {columns.map(col => (
                 <col
                   key={col.key}
@@ -529,6 +633,11 @@ export function DynamicTable<T>({
           )}
           <thead className="sticky top-0 z-10 panel-header">
             <tr className="align-middle">
+              {rowSelection && (
+                <th className="px-3 py-2.5 w-10 text-center align-middle">
+                  {renderSelectionHeader()}
+                </th>
+              )}
               {columns.map(col => (
                 <th
                   key={col.key}
@@ -565,6 +674,11 @@ export function DynamicTable<T>({
                 )}
                 {...getRowDropProps(row)}
               >
+                {rowSelection && (
+                  <td className="px-3 py-2 align-middle text-center w-10">
+                    {renderSelectionCell(row)}
+                  </td>
+                )}
                 {columns.map(col => (
                   <td
                     key={col.key}

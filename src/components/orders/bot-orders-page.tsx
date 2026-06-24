@@ -16,6 +16,7 @@ import {
   updateOrderStatus,
   updateBotOrder,
   deleteBotOrder,
+  bulkUpdateBotOrders,
   type OrderStatus,
   type UpdateBotOrderPayload,
   type WhatsAppBotOrder,
@@ -89,7 +90,10 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
   const [editingOrder, setEditingOrder] = useState<WhatsAppBotOrder | null>(null)
   const [pivotOpen, setPivotOpen] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [deleteTarget, setDeleteTarget] = useState<WhatsAppBotOrder | null>(null)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const exportCsvRef = useRef<(() => void) | null>(null)
 
   const headerActions = useMemo(
@@ -193,6 +197,12 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
       await deleteBotOrder(deleteTarget.id, company)
       setOrders(prev => prev.filter(order => order.id !== deleteTarget.id))
       setSelectedOrder(prev => (prev?.id === deleteTarget.id ? null : prev))
+      setSelectedIds(prev => {
+        if (!prev.has(deleteTarget.id)) return prev
+        const next = new Set(prev)
+        next.delete(deleteTarget.id)
+        return next
+      })
       toast.success('Order deleted')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete order')
@@ -201,6 +211,60 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
       setDeleteTarget(null)
     }
   }, [company, deleteTarget, toast])
+
+  const selectedOrders = useMemo(
+    () => orders.filter(order => selectedIds.has(order.id)),
+    [orders, selectedIds]
+  )
+
+  const bulkApprovableCount = useMemo(
+    () => selectedOrders.filter(order => order.status !== 'approved').length,
+    [selectedOrders]
+  )
+
+  const handleBulkApprove = useCallback(async () => {
+    const ids = selectedOrders.filter(order => order.status !== 'approved').map(order => order.id)
+    if (ids.length === 0) return
+
+    setBulkUpdating(true)
+    try {
+      const result = await bulkUpdateBotOrders(company, 'approve', ids)
+      setOrders(prev =>
+        prev.map(order =>
+          result.ids.includes(order.id) ? { ...order, status: 'approved' as const } : order
+        )
+      )
+      setSelectedOrder(prev =>
+        prev && result.ids.includes(prev.id) ? { ...prev, status: 'approved' } : prev
+      )
+      toast.success(`Approved ${result.affected} order${result.affected === 1 ? '' : 's'}`)
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to approve orders')
+    } finally {
+      setBulkUpdating(false)
+    }
+  }, [company, selectedOrders, toast])
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = selectedOrders.map(order => order.id)
+    if (ids.length === 0) return
+
+    setBulkUpdating(true)
+    try {
+      const result = await bulkUpdateBotOrders(company, 'delete', ids)
+      const deleted = new Set(result.ids)
+      setOrders(prev => prev.filter(order => !deleted.has(order.id)))
+      setSelectedOrder(prev => (prev && deleted.has(prev.id) ? null : prev))
+      setSelectedIds(new Set())
+      toast.success(`Deleted ${result.affected} order${result.affected === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete orders')
+    } finally {
+      setBulkUpdating(false)
+      setBulkDeleteOpen(false)
+    }
+  }, [company, selectedOrders, toast])
 
   const ordersInDateRange = useMemo(
     () => filterOrdersByDate(orders, dateFilter),
@@ -426,6 +490,17 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         onConfirm={handleDelete}
       />
 
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        title={`Delete ${selectedIds.size} order${selectedIds.size === 1 ? '' : 's'}?`}
+        description="Selected orders will be permanently removed. This cannot be undone."
+        confirmLabel="Delete all"
+        variant="danger"
+        loading={bulkUpdating}
+        onCancel={() => !bulkUpdating && setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+      />
+
       <OrderReceiptModal
         order={selectedOrder}
         updating={selectedOrder ? updatingId === selectedOrder.id : false}
@@ -490,6 +565,11 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         onClearFilters={() => {
           setDateFilter(DEFAULT_TABLE_DATE_FILTER)
           setStatusFilter('')
+          setSelectedIds(new Set())
+        }}
+        rowSelection={{
+          selectedIds,
+          onChange: setSelectedIds,
         }}
         mobileCardRender={(order) => (
           <button
@@ -539,17 +619,64 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
           },
         ]}
         toolbar={
-          <button
-            type="button"
-            onClick={loadOrders}
-            disabled={loading}
-            className="btn-secondary shrink-0 !p-1.5 sm:!py-1.5 sm:!px-3"
-            aria-label="Refresh orders"
-            title="Refresh orders"
-          >
-            <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline sm:ml-1.5">Refresh</span>
-          </button>
+          <>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 border border-brand-200 bg-brand-50/60 rounded-lg px-2 py-1">
+                <span className="text-xs sm:text-sm font-semibold text-brand-800 whitespace-nowrap">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleBulkApprove()}
+                  disabled={loading || bulkUpdating || bulkApprovableCount === 0}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-brand-200 text-brand-700 hover:bg-brand-50 disabled:opacity-40"
+                  aria-label={
+                    bulkApprovableCount === 0
+                      ? 'All selected orders are already approved'
+                      : `Approve ${bulkApprovableCount} order${bulkApprovableCount === 1 ? '' : 's'}`
+                  }
+                  title={
+                    bulkApprovableCount === 0
+                      ? 'All selected orders are already approved'
+                      : `Approve ${bulkApprovableCount} order${bulkApprovableCount === 1 ? '' : 's'}`
+                  }
+                >
+                  {bulkUpdating ? <BulkSpinner /> : <CheckIcon className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={loading || bulkUpdating}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                  aria-label={`Delete ${selectedIds.size} order${selectedIds.size === 1 ? '' : 's'}`}
+                  title={`Delete ${selectedIds.size} order${selectedIds.size === 1 ? '' : 's'}`}
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  disabled={bulkUpdating}
+                  className="btn-secondary !py-1 !px-2 text-xs sm:text-sm"
+                  aria-label="Clear selection"
+                  title="Clear selection"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={loadOrders}
+              disabled={loading || bulkUpdating}
+              className="btn-secondary shrink-0 !p-1.5 sm:!py-1.5 sm:!px-3"
+              aria-label="Refresh orders"
+              title="Refresh orders"
+            >
+              <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline sm:ml-1.5">Refresh</span>
+            </button>
+          </>
         }
         exportConfig={{
           fileName: () => `${company}-orders-${toDateInputValue(new Date())}.csv`,
@@ -657,6 +784,36 @@ function NoteIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+      />
+    </svg>
+  )
+}
+
+function BulkSpinner() {
+  return (
+    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
       />
     </svg>
   )

@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
 import { isAllowedRole } from '@/lib/auth'
-import { buildMessageLeads } from '@/lib/message-leads-server'
+import { buildMessagesOverviewStats } from '@/lib/messages-overview-server'
+import {
+  DEFAULT_TABLE_DATE_FILTER,
+  type OrderDateFilterState,
+} from '@/lib/order-date-filter'
 
 async function requireAuth() {
   const supabase = createAuthClient()
@@ -22,6 +26,24 @@ async function requireAuth() {
   return user
 }
 
+function parseDateFilter(url: URL): OrderDateFilterState {
+  const preset = url.searchParams.get('preset')
+  if (
+    preset === 'all' ||
+    preset === 'today' ||
+    preset === 'week' ||
+    preset === 'month' ||
+    preset === 'custom'
+  ) {
+    return {
+      preset,
+      customFrom: url.searchParams.get('customFrom') ?? '',
+      customTo: url.searchParams.get('customTo') ?? '',
+    }
+  }
+  return DEFAULT_TABLE_DATE_FILTER
+}
+
 export async function GET(request: Request) {
   const user = await requireAuth()
   if (!user) {
@@ -39,11 +61,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await buildMessageLeads(company)
-    return NextResponse.json({ success: true, data })
+    const stats = await buildMessagesOverviewStats(company, parseDateFilter(url))
+    return NextResponse.json({ success: true, data: stats })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error'
-    console.error('message-leads error:', err)
+    console.error('ad-click-stats error:', err)
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

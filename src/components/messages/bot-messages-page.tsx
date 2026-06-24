@@ -2,14 +2,18 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  fetchMessageLeads,
-  formatMessageLeadStep,
-  type MessageLead,
-} from '@/lib/message-leads'
-import { formatSessionDate } from '@/lib/whatsapp-bot-sessions'
+  fetchMessagesOverviewStats,
+  type MessagesOverviewStats,
+} from '@/lib/messages-overview'
+import {
+  fetchPreDraftSessions,
+  formatSessionDate,
+  type WhatsAppBotSessionMessage,
+} from '@/lib/whatsapp-bot-sessions'
 import {
   buildSessionFollowUpMessage,
   formatSessionPhone,
+  formatSessionState,
   sessionWhatsAppMessageUrl,
 } from '@/lib/whatsapp-session-labels'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
@@ -24,30 +28,25 @@ import {
   type OrderDateFilterState,
 } from '@/lib/order-date-filter'
 
-function matchesLeadSearch(lead: MessageLead, query: string): boolean {
+function matchesSessionSearch(session: WhatsAppBotSessionMessage, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
 
   return (
-    lead.phone.includes(q) ||
-    formatSessionPhone(lead.phone).toLowerCase().includes(q) ||
-    formatMessageLeadStep(lead).toLowerCase().includes(q) ||
-    (lead.product_name ?? '').toLowerCase().includes(q) ||
-    (lead.source_id ?? '').toLowerCase().includes(q) ||
-    lead.source.toLowerCase().includes(q)
+    session.phone.includes(q) ||
+    formatSessionPhone(session.phone).toLowerCase().includes(q) ||
+    formatSessionState(session.state).toLowerCase().includes(q) ||
+    (session.product_name ?? '').toLowerCase().includes(q)
   )
 }
 
-function followUpUrl(lead: MessageLead, company: WhatsAppCompany): string {
-  const message = buildSessionFollowUpMessage(
-    {
-      state: lead.session_state,
-      product_name: lead.product_name,
-      customer_name: lead.customer_name,
-    },
-    company
-  )
-  return sessionWhatsAppMessageUrl(lead.phone, message)
+function followUpUrl(session: WhatsAppBotSessionMessage, company: WhatsAppCompany): string {
+  const message = buildSessionFollowUpMessage(session, company)
+  return sessionWhatsAppMessageUrl(session.phone, message)
+}
+
+function sessionActiveAt(session: WhatsAppBotSessionMessage): string {
+  return session.last_inbound_at ?? session.updated_at
 }
 
 interface BotMessagesPageProps {
@@ -58,120 +57,131 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
-  const [leads, setLeads] = useState<MessageLead[]>([])
+  const [sessions, setSessions] = useState<WhatsAppBotSessionMessage[]>([])
+  const [overview, setOverview] = useState<MessagesOverviewStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [sourceFilter, setSourceFilter] = useState('')
-  const [stepFilter, setStepFilter] = useState('')
+  const [stateFilter, setStateFilter] = useState('')
   const [productFilter, setProductFilter] = useState('')
   const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
 
-  const loadLeads = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchMessageLeads(company)
-      setLeads(data)
+      const data = await fetchPreDraftSessions(company)
+      setSessions(data)
     } catch (err) {
       toastRef.current.error(err instanceof Error ? err.message : 'Failed to load messages')
-      setLeads([])
+      setSessions([])
     } finally {
       setLoading(false)
     }
   }, [company])
 
-  useEffect(() => {
-    loadLeads()
-  }, [loadLeads])
+  const loadOverview = useCallback(async () => {
+    try {
+      const data = await fetchMessagesOverviewStats(company, dateFilter)
+      setOverview(data)
+    } catch {
+      setOverview(null)
+    }
+  }, [company, dateFilter])
 
-  const stepOptions = useMemo(() => {
-    const steps = Array.from(new Set(leads.map(lead => formatMessageLeadStep(lead)))).sort()
-    return [{ value: '', label: 'All steps' }, ...steps.map(step => ({ value: step, label: step }))]
-  }, [leads])
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
+
+  useEffect(() => {
+    loadOverview()
+  }, [loadOverview])
+
+  const stateOptions = useMemo(() => {
+    const states = Array.from(new Set(sessions.map(session => session.state))).sort()
+    return [
+      { value: '', label: 'All steps' },
+      ...states.map(state => ({ value: state, label: formatSessionState(state) })),
+    ]
+  }, [sessions])
 
   const productOptions = useMemo(() => {
-    const byName = new Set<string>()
-    for (const lead of leads) {
-      if (lead.product_name) byName.add(lead.product_name)
+    const byId = new Map<string, string>()
+    for (const session of sessions) {
+      if (session.selected_item_id && session.product_name) {
+        byId.set(session.selected_item_id, session.product_name)
+      }
     }
     return [
       { value: '', label: 'All products' },
-      ...Array.from(byName)
-        .sort((a, b) => a.localeCompare(b))
-        .map(name => ({ value: name, label: name })),
+      ...Array.from(byId.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => ({ value: id, label: name })),
     ]
-  }, [leads])
+  }, [sessions])
 
-  const leadsInDateRange = useMemo(
-    () => filterByDateField(leads, dateFilter, lead => lead.received_at),
-    [leads, dateFilter]
+  const sessionsInDateRange = useMemo(
+    () => filterByDateField(sessions, dateFilter, sessionActiveAt),
+    [sessions, dateFilter]
   )
 
   const stats = useMemo(() => {
-    const adClicks = leadsInDateRange.filter(lead => lead.source === 'ad').length
-    const inProgress = leadsInDateRange.filter(
-      lead =>
-        !lead.draft_order_id &&
-        lead.session_state !== 'idle' &&
-        lead.session_state !== 'ad_click' &&
-        lead.session_state !== 'awaiting_menu_selection'
+    const withProduct = sessionsInDateRange.filter(session => session.selected_item_id).length
+    const uniquePhones = new Set(sessionsInDateRange.map(session => session.phone)).size
+    const welcomeMenu = sessionsInDateRange.filter(
+      session => session.state === 'awaiting_menu_selection'
     ).length
-    const uniquePhones = new Set(leadsInDateRange.map(lead => lead.phone)).size
-    const withProduct = leadsInDateRange.filter(lead => lead.product_name).length
+    const metaAdClicks = overview?.metaSyncConfigured ? (overview?.metaAdClicks ?? 0) : null
+    const whatsappReplies = overview?.whatsappReplies ?? null
+    const openedNoReply =
+      metaAdClicks != null && whatsappReplies != null
+        ? Math.max(metaAdClicks - whatsappReplies, 0)
+        : null
 
-    return { adClicks, inProgress, uniquePhones, withProduct, total: leadsInDateRange.length }
-  }, [leadsInDateRange])
+    return {
+      total: sessionsInDateRange.length,
+      uniquePhones,
+      withProduct,
+      welcomeMenu,
+      metaAdClicks,
+      whatsappReplies,
+      openedNoReply,
+    }
+  }, [sessionsInDateRange, overview])
 
-  const columns: DynamicTableColumn<MessageLead>[] = useMemo(
+  const columns: DynamicTableColumn<WhatsAppBotSessionMessage>[] = useMemo(
     () => [
       {
         key: 'phone',
         header: 'Phone',
-        width: '14%',
-        sortValue: lead => lead.phone,
-        render: lead => (
+        width: '16%',
+        sortValue: session => session.phone,
+        render: session => (
           <span
             className="font-medium text-ink-900 tabular-nums whitespace-nowrap"
-            title={formatSessionPhone(lead.phone)}
+            title={formatSessionPhone(session.phone)}
           >
-            {formatSessionPhone(lead.phone)}
+            {formatSessionPhone(session.phone)}
           </span>
         ),
       },
       {
-        key: 'source',
-        header: 'Source',
-        width: '10%',
-        sortValue: lead => lead.source,
-        render: lead => (
-          <span
-            className={
-              lead.source === 'ad'
-                ? 'inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700'
-                : 'inline-flex rounded-full bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-600'
-            }
-          >
-            {lead.source === 'ad' ? 'Ad' : 'Direct'}
-          </span>
-        ),
-      },
-      {
-        key: 'step',
+        key: 'state',
         header: 'Step',
-        width: '14%',
+        width: '16%',
         truncateCell: true,
-        sortValue: lead => formatMessageLeadStep(lead),
-        render: lead => (
-          <span className="text-ink-700 truncate block" title={formatMessageLeadStep(lead)}>
-            {formatMessageLeadStep(lead)}
+        sortValue: session => formatSessionState(session.state),
+        render: session => (
+          <span className="text-ink-700 truncate block" title={formatSessionState(session.state)}>
+            {formatSessionState(session.state)}
           </span>
         ),
       },
       {
-        key: 'received_at',
-        header: 'Date',
-        width: '16%',
-        sortValue: lead => new Date(lead.received_at).getTime(),
-        render: lead => {
-          const label = formatSessionDate(lead.received_at)
+        key: 'last_active',
+        header: 'Last active',
+        width: '18%',
+        sortValue: session =>
+          new Date(session.last_inbound_at ?? session.updated_at).getTime(),
+        render: session => {
+          const label = formatSessionDate(session.last_inbound_at ?? session.updated_at)
           return (
             <span className="text-ink-600 whitespace-nowrap" title={label}>
               {label}
@@ -182,44 +192,25 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
       {
         key: 'product',
         header: 'Product',
-        width: '16%',
+        width: '22%',
         truncateCell: true,
-        sortValue: lead => lead.product_name ?? '',
-        render: lead => (
-          <span className="text-ink-600 truncate block" title={lead.product_name ?? undefined}>
-            {lead.product_name ?? '—'}
-          </span>
-        ),
-      },
-      {
-        key: 'ad_id',
-        header: 'Ad ID',
-        width: '14%',
-        truncateCell: true,
-        sortValue: lead => lead.source_id ?? '',
-        render: lead => (
-          <span className="text-ink-500 truncate block font-mono text-xs" title={lead.source_id ?? undefined}>
-            {lead.source_id ?? '—'}
+        sortValue: session => session.product_name ?? '',
+        render: session => (
+          <span className="text-ink-600 truncate block" title={session.product_name ?? undefined}>
+            {session.product_name ?? '—'}
           </span>
         ),
       },
       {
         key: 'follow_up',
         header: 'Follow up',
-        width: '12%',
+        width: '14%',
         shrinkCol: true,
         align: 'right',
-        sortValue: lead => formatMessageLeadStep(lead),
-        render: lead => {
-          const message = buildSessionFollowUpMessage(
-            {
-              state: lead.session_state,
-              product_name: lead.product_name,
-              customer_name: lead.customer_name,
-            },
-            company
-          )
-          const href = followUpUrl(lead, company)
+        sortValue: session => formatSessionState(session.state),
+        render: session => {
+          const message = buildSessionFollowUpMessage(session, company)
+          const href = followUpUrl(session, company)
           return (
             <a
               href={href}
@@ -245,64 +236,57 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
     <div className="flex flex-col flex-1 min-h-0 w-full gap-3 overflow-hidden">
       <CollapsibleKpiPanel
         title="Messages overview"
-        subtitle={`${brandLabel} · ad clicks and in-progress chats`}
+        subtitle={`${brandLabel} · Meta ad clicks vs WhatsApp replies`}
         items={[
           {
-            label: 'Ad clicks',
-            value: loading ? '—' : String(stats.adClicks),
+            label: 'Meta ad clicks',
+            value:
+              overview === null
+                ? '—'
+                : stats.metaAdClicks != null
+                  ? String(stats.metaAdClicks)
+                  : 'Set META token',
           },
           {
-            label: 'In progress',
-            value: loading ? '—' : String(stats.inProgress),
+            label: 'WhatsApp replies',
+            value: overview === null ? '—' : String(stats.whatsappReplies ?? '—'),
           },
           {
-            label: 'Unique numbers',
-            value: loading ? '—' : String(stats.uniquePhones),
+            label: 'Opened, no reply',
+            value:
+              stats.openedNoReply != null ? String(stats.openedNoReply) : '—',
           },
           {
-            label: 'With product',
-            value: loading ? '—' : String(stats.withProduct),
+            label: 'In progress (table)',
+            value: loading ? '—' : String(stats.total),
           },
         ]}
       />
 
       <DynamicTable
-        data={leadsInDateRange}
+        data={sessionsInDateRange}
         columns={columns}
-        rowKey={lead => lead.id}
+        rowKey={session => session.phone}
         loading={loading}
-        searchPlaceholder="Search phone, ad ID, product, step…"
-        searchFilter={matchesLeadSearch}
-        defaultSort={{ key: 'received_at', direction: 'desc' }}
+        searchPlaceholder="Search phone, product, step…"
+        searchFilter={matchesSessionSearch}
+        defaultSort={{ key: 'last_active', direction: 'desc' }}
         fitScreen
         filterExtras={<OrderDateFilter value={dateFilter} onChange={setDateFilter} />}
         extrasActive={isOrderDateFilterActive(dateFilter)}
         onClearFilters={() => {
           setDateFilter(DEFAULT_TABLE_DATE_FILTER)
-          setSourceFilter('')
-          setStepFilter('')
+          setStateFilter('')
           setProductFilter('')
         }}
         filters={[
           {
-            id: 'source-filter',
-            label: 'Source',
-            value: sourceFilter,
-            onChange: setSourceFilter,
-            options: [
-              { value: '', label: 'All sources' },
-              { value: 'ad', label: 'Ad click' },
-              { value: 'organic', label: 'Direct' },
-            ],
-            match: (lead, value) => lead.source === value,
-          },
-          {
-            id: 'step-filter',
+            id: 'state-filter',
             label: 'Step',
-            value: stepFilter,
-            onChange: setStepFilter,
-            options: stepOptions,
-            match: (lead, value) => formatMessageLeadStep(lead) === value,
+            value: stateFilter,
+            onChange: setStateFilter,
+            options: stateOptions,
+            match: (session, value) => session.state === value,
           },
           {
             id: 'product-filter',
@@ -310,13 +294,16 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             value: productFilter,
             onChange: setProductFilter,
             options: productOptions,
-            match: (lead, value) => lead.product_name === value,
+            match: (session, value) => session.selected_item_id === value,
           },
         ]}
         toolbar={
           <button
             type="button"
-            onClick={loadLeads}
+            onClick={() => {
+              void loadSessions()
+              void loadOverview()
+            }}
             disabled={loading}
             className="btn-secondary shrink-0 !p-2 sm:!py-1.5 sm:!px-3"
             aria-label="Refresh messages"
@@ -326,34 +313,25 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             <span className="hidden sm:inline sm:ml-1.5">Refresh</span>
           </button>
         }
-        mobileCardRender={lead => {
-          const message = buildSessionFollowUpMessage(
-            {
-              state: lead.session_state,
-              product_name: lead.product_name,
-              customer_name: lead.customer_name,
-            },
-            company
-          )
-          const href = followUpUrl(lead, company)
+        mobileCardRender={session => {
+          const message = buildSessionFollowUpMessage(session, company)
+          const href = followUpUrl(session, company)
           return (
             <div className="px-3 py-2.5">
               <div className="flex items-start justify-between gap-2 mb-1">
                 <span className="font-medium text-ink-900 tabular-nums">
-                  {formatSessionPhone(lead.phone)}
+                  {formatSessionPhone(session.phone)}
                 </span>
                 <span className="text-xs font-medium text-ink-500 shrink-0">
-                  {formatMessageLeadStep(lead)}
+                  {formatSessionState(session.state)}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-ink-500">
-                <span>{lead.source === 'ad' ? 'Ad click' : 'Direct'}</span>
-                {lead.source_id && <span className="font-mono truncate">· {lead.source_id}</span>}
-              </div>
-              {lead.product_name && (
-                <p className="text-sm text-ink-700 truncate mt-1">{lead.product_name}</p>
+              {session.product_name && (
+                <p className="text-sm text-ink-700 truncate">{session.product_name}</p>
               )}
-              <p className="text-xs text-ink-400 mt-1">{formatSessionDate(lead.received_at)}</p>
+              <p className="text-xs text-ink-400 mt-1">
+                {formatSessionDate(session.last_inbound_at ?? session.updated_at)}
+              </p>
               <a
                 href={href}
                 target="_blank"
@@ -369,8 +347,8 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
         }}
         emptyState={
           <p className="text-sm text-ink-500 py-8 text-center">
-            No ad clicks or in-progress chats in this date range. Ad-initiated WhatsApp messages
-            appear here once someone messages from your Meta ad.
+            No in-progress chats in this date range. Meta ad clicks (including people who opened
+            WhatsApp but did not send a message) appear in the overview above once synced.
           </p>
         }
       />

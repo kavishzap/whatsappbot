@@ -263,6 +263,32 @@ export async function deleteBotOrder(id: string, company: WhatsAppCompany): Prom
   }
 }
 
+export type BulkOrderAction = 'approve' | 'delete'
+
+export interface BulkOrderResult {
+  affected: number
+  ids: string[]
+}
+
+export async function bulkUpdateBotOrders(
+  company: WhatsAppCompany,
+  action: BulkOrderAction,
+  ids: string[]
+): Promise<BulkOrderResult> {
+  const res = await fetch('/api/whatsapp-bot-orders/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ company, action, ids }),
+  })
+  const json: ApiResponse<BulkOrderResult> = await res.json()
+
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error ?? `Failed to ${action} orders`)
+  }
+
+  return json.data
+}
+
 export function formatOrderDate(iso: string): string {
   if (!iso) return '—'
   const date = new Date(iso)
