@@ -55,7 +55,7 @@ export async function sendProductList(
   const safePage = Math.min(Math.max(page, 0), totalPages - 1)
   const slice = pages[safePage]
 
-  const pageHint = totalPages > 1 ? ` (page ${safePage + 1} of ${totalPages})` : ''
+  const pageHint = totalPages > 1 ? ` (Part ${safePage + 1})` : ''
 
   const rows: { id: string; title: string; description?: string }[] = slice.map((item, i) => {
     const globalIndex = pages.slice(0, safePage).reduce((sum, p) => sum + p.length, 0) + i

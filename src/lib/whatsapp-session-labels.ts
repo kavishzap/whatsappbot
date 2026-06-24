@@ -8,6 +8,8 @@ export interface SessionFollowUpContext {
 }
 
 const SESSION_STATE_LABELS: Record<string, string> = {
+  ad_click: 'Ad click',
+  awaiting_menu_selection: 'Welcome menu',
   awaiting_order_decision: 'Order decision',
   awaiting_product_selection: 'Product selection',
   awaiting_add_more_product: 'Add more product',
@@ -114,6 +116,16 @@ export function buildSessionFollowUpMessage(
 
     case 'awaiting_web_checkout':
       return `${hi}, this is ${brand}. Did you complete checkout on our website? Send us your order reference here and we'll confirm it for you.`
+
+    case 'awaiting_menu_selection':
+      return product
+        ? `${hi}, this is ${brand}. Thanks for your interest in *${product}* from our ad. Tap *Order a Product* in our chat or reply here and we'll help you order.`
+        : `${hi}, this is ${brand}. Thanks for contacting us from our ad. Tap *Order a Product* in our chat or reply here and we'll help you.`
+
+    case 'ad_click':
+      return product
+        ? `${hi}, this is ${brand}. Thanks for your interest in *${product}* from our ad. Reply here if you'd like help placing your order.`
+        : `${hi}, this is ${brand}. Thanks for contacting us from our ad. Reply here if you'd like help placing your order.`
 
     default:
       return `${hi}, this is ${brand}. We noticed you didn't finish your order. Can we help you complete it?`

@@ -42,7 +42,6 @@ import {
   isColorYesAnswer,
   isColorNoAnswer,
   parseQuantitySelection,
-  parseQuantity,
   parseAddress,
   parseNewMachineColorSelection,
   parseOrderRef,
@@ -53,6 +52,7 @@ import {
   WELCOME_MENU_MESSAGE,
   OTHER_QUERY_MESSAGE,
   OTHER_QUERY_CTA_LABEL,
+  OTHER_QUERY_BUTTON_TITLE,
   SUPPORT_WHATSAPP_URL,
   WEB_CHECKOUT_MESSAGE,
   WEB_CHECKOUT_CTA_LABEL,
@@ -65,7 +65,7 @@ import {
   PROCESS_ERROR_MESSAGE,
 } from './constants'
 import { scheduleSodamaxFlavourPromo } from './promo-schedule'
-import { CUSTOM_QUANTITY_MESSAGE, QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
+import { QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
 import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
 import { buildCityIdPatch } from '@/lib/spark/match-city'
 import { sendOrderThankYouWithOtherQuery } from '@/lib/order-thank-you'
@@ -600,16 +600,8 @@ async function handleQuantity(
 ): Promise<void> {
   const selection = parseQuantitySelection(input)
 
-  if (selection === 'custom') {
-    await Promise.all([
-      updateSession(phone, { state: 'awaiting_quantity_custom' }),
-      sendWhatsAppText(phone, CUSTOM_QUANTITY_MESSAGE),
-    ])
-    return
-  }
-
   if (selection === null) {
-    await sendWhatsAppText(phone, 'Please select a quantity from the list.')
+    await sendWhatsAppText(phone, 'Please select a quantity from the list (1, 2, or 3).')
     await askQuantity(phone, session.selected_item_id)
     return
   }
@@ -623,18 +615,8 @@ async function handleQuantityCustom(
   input: MessageInput,
   profileName?: string
 ): Promise<void> {
-  if (input.type !== 'text') {
-    await sendWhatsAppText(phone, 'Please type a number for your custom quantity.')
-    return
-  }
-
-  const qty = parseQuantity(input)
-  if (!qty) {
-    await sendWhatsAppText(phone, 'Please enter a valid quantity (1–999).')
-    return
-  }
-
-  await proceedAfterQuantity(phone, session, qty, profileName)
+  await updateSession(phone, { state: 'awaiting_quantity' })
+  await handleQuantity(phone, session, input, profileName)
 }
 
 function resolveCustomerName(
@@ -1104,14 +1086,15 @@ async function handleConfirm(phone: string, session: SodamaxSession, input: Mess
   )
 
   if (result.success) {
+    const confirmedOrderId = session.draft_order_id
     await sendOrderThankYouWithOtherQuery(
       phone,
       result.orderRef ?? '—',
       session.total,
-      { id: 'sm_other_query', title: 'Other Query' }
+      { id: 'sm_other_query', title: OTHER_QUERY_BUTTON_TITLE }
     )
     await resetSession(phone)
-    void scheduleSodamaxFlavourPromo(phone).catch(err =>
+    void scheduleSodamaxFlavourPromo(phone, confirmedOrderId).catch(err =>
       console.error('scheduleSodamaxFlavourPromo failed:', err)
     )
     return

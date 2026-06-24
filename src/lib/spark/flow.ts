@@ -35,20 +35,20 @@ import {
   parseProductSelection,
   parseProductListPage,
   parseQuantitySelection,
-  parseQuantity,
   parseAddress,
   parseProfileName,
   parseCustomerName,
   parseMenuSelection,
 } from './parse-input'
 import { sendProductList } from './product-list'
-import { sendQuantityList, sendCustomQuantityPrompt } from './quantity-list'
+import { sendQuantityList } from './quantity-list'
 import { sendDeliveryAddressPrompt } from './regions'
 import {
   MAIN_MENU_BUTTONS,
   WELCOME_MENU_MESSAGE,
   OTHER_QUERY_MESSAGE,
   OTHER_QUERY_CTA_LABEL,
+  OTHER_QUERY_BUTTON_TITLE,
   SUPPORT_WHATSAPP_URL,
   computeOrderTotal,
   PROCESS_ERROR_MESSAGE,
@@ -381,17 +381,6 @@ async function sendQuantityListForSession(phone: string, session: WhatsAppSessio
   await sendQuantityList(phone, { showBackToSummary: isAddMoreCheckoutReady(session) })
 }
 
-async function sendCustomQuantityPromptForSession(
-  phone: string,
-  session: WhatsAppSession,
-  message?: string
-): Promise<void> {
-  await sendCustomQuantityPrompt(phone, {
-    showBackToSummary: isAddMoreCheckoutReady(session),
-    message,
-  })
-}
-
 async function proceedAfterQuantity(
   phone: string,
   session: WhatsAppSession,
@@ -683,12 +672,6 @@ async function handleQuantity(
 
   const selection = parseQuantitySelection(input)
 
-  if (selection === 'custom') {
-    await sendCustomQuantityPromptForSession(phone, session)
-    persistSession(phone, session, { state: 'awaiting_quantity_custom' })
-    return
-  }
-
   if (selection === null) {
     await sendQuantityListForSession(phone, session)
     return
@@ -708,26 +691,8 @@ async function handleQuantityCustom(
     return
   }
 
-  if (input.type !== 'text') {
-    await sendCustomQuantityPromptForSession(
-      phone,
-      session,
-      'Please type a number for your custom quantity.'
-    )
-    return
-  }
-
-  const qty = parseQuantity(input)
-  if (!qty) {
-    await sendCustomQuantityPromptForSession(
-      phone,
-      session,
-      'Please enter a valid quantity (a number from 1 to 999, e.g. 5 or 10).'
-    )
-    return
-  }
-
-  await proceedAfterQuantity(phone, session, qty, profileName)
+  persistSession(phone, session, { state: 'awaiting_quantity' })
+  await handleQuantity(phone, session, input, profileName)
 }
 
 async function handleDeliveryAddress(
@@ -978,7 +943,7 @@ async function handleConfirm(
       phone,
       result.orderRef ?? '—',
       session.total,
-      { id: 'menu_other_query', title: 'Other Query' }
+      { id: 'menu_other_query', title: OTHER_QUERY_BUTTON_TITLE }
     )
     await resetSession(phone)
     return

@@ -174,6 +174,12 @@ export function displayOrderAddress(order: WhatsAppBotOrder): string {
   return '—'
 }
 
+/** Address value for the edit form — matches what the view modal shows. */
+export function resolveEditAddress(order: WhatsAppBotOrder): string {
+  const value = displayOrderAddress(order)
+  return value === '—' ? '' : value
+}
+
 export function displayOrderCity(order: WhatsAppBotOrder): string {
   return order.mapped_city_name?.trim() || '—'
 }
@@ -203,15 +209,44 @@ export async function updateOrderStatus(
   status: OrderStatus,
   company: WhatsAppCompany
 ): Promise<WhatsAppBotOrder> {
+  return updateBotOrder({ id, company, status })
+}
+
+export interface UpdateBotOrderItemPayload {
+  item_id?: string | null
+  color_id?: string | null
+  product_name: string
+  color_name?: string | null
+  color_hex?: string | null
+  quantity: number
+  unit_price: number
+  line_total?: number
+  sort_order?: number
+}
+
+export interface UpdateBotOrderPayload {
+  id: string
+  company: WhatsAppCompany
+  status?: OrderStatus
+  customer_name?: string
+  address?: string
+  city?: string
+  city_id?: string | null
+  notes?: string | null
+  total?: number
+  items?: UpdateBotOrderItemPayload[]
+}
+
+export async function updateBotOrder(payload: UpdateBotOrderPayload): Promise<WhatsAppBotOrder> {
   const res = await fetch('/api/whatsapp-bot-orders', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, status, company }),
+    body: JSON.stringify(payload),
   })
   const json: ApiResponse<WhatsAppBotOrder> = await res.json()
 
   if (!res.ok || !json.success || !json.data) {
-    throw new Error(json.error ?? 'Failed to update order status')
+    throw new Error(json.error ?? 'Failed to update order')
   }
 
   return normalizeOrder(json.data)
@@ -229,13 +264,17 @@ export async function deleteBotOrder(id: string, company: WhatsAppCompany): Prom
 }
 
 export function formatOrderDate(iso: string): string {
+  if (!iso) return '—'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
 
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const year = date.getFullYear()
-  return `${day}/${month}/${year}`
+  return date.toLocaleString('en-MU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function formatOrderTotal(total: number): string {

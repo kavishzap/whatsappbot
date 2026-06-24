@@ -21,17 +21,17 @@ export default async (req: Request) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  let body: { phone?: string; delayMs?: number }
+  let body: { promoId?: string; phone?: string; delayMs?: number }
   try {
     body = await req.json()
   } catch {
     return new Response('Invalid JSON', { status: 400 })
   }
 
-  const phone = body.phone?.trim()
+  const promoId = body.promoId?.trim()
   const delayMs = typeof body.delayMs === 'number' ? body.delayMs : 60_000
 
-  if (!phone) {
+  if (!promoId) {
     return new Response('Invalid payload', { status: 400 })
   }
 
@@ -49,7 +49,7 @@ export default async (req: Request) => {
       Authorization: `Bearer ${expected}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ promoId }),
   })
 
   const text = await res.text()

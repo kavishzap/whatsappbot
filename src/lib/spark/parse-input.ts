@@ -147,13 +147,12 @@ export function parseProductListPage(input: MessageInput): number | null {
   return Number.isNaN(n) || n < 0 ? null : n
 }
 
-export function parseQuantitySelection(input: MessageInput): number | 'custom' | null {
+export function parseQuantitySelection(input: MessageInput): number | null {
   if (input.type === 'list') {
-    if (input.value === 'qty_custom') return 'custom'
     const match = input.value.match(/^qty_(\d+)$/)
     if (match) {
       const qty = parseInt(match[1], 10)
-      if (qty >= 1 && qty <= 4) return qty
+      if (qty >= 1 && qty <= 3) return qty
     }
     return null
   }
@@ -172,20 +171,13 @@ export function parseQuantity(input: MessageInput): number | null {
   const digitMatch = raw.match(/\d+/)
   if (digitMatch) {
     const qty = parseInt(digitMatch[0], 10)
-    if (qty >= 1 && qty <= 999) return qty
+    if (qty >= 1 && qty <= 3) return qty
   }
 
   const wordMap: Record<string, number> = {
     one: 1,
     two: 2,
     three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-    eight: 8,
-    nine: 9,
-    ten: 10,
   }
 
   const normalized = normalize(raw)

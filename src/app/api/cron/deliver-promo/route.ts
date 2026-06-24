@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isCronAuthorized } from '@/lib/cron-auth'
-import { deliverScheduledSodamaxFlavourPromo } from '@/lib/sodamax/promo-schedule'
+import { deliverScheduledSodamaxFlavourPromoById } from '@/lib/sodamax/promo-schedule'
 
 /** Internal endpoint used by the delayed SodaMax promo background worker. */
 export async function POST(request: Request) {
@@ -8,22 +8,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { phone?: string }
+  let body: { promoId?: string }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const phone = body.phone?.trim()
+  const promoId = body.promoId?.trim()
 
-  if (!phone) {
-    return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 })
+  if (!promoId) {
+    return NextResponse.json({ success: false, error: 'Missing promoId' }, { status: 400 })
   }
 
   try {
-    await deliverScheduledSodamaxFlavourPromo(phone)
-    return NextResponse.json({ success: true, phone, company: 'sodamax' })
+    const sent = await deliverScheduledSodamaxFlavourPromoById(promoId)
+    return NextResponse.json({
+      success: true,
+      sent,
+      promoId,
+      company: 'sodamax',
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Promo delivery failed'
     console.error('deliver-promo error:', err)

@@ -5,6 +5,7 @@ import type { WhatsAppBotOrder } from '@/lib/whatsapp-bot-orders'
 interface OrderActionsMenuProps {
   order: WhatsAppBotOrder
   updating: boolean
+  onEdit: () => void
   onApprove: () => void
   onDelete: () => void
 }
@@ -12,6 +13,7 @@ interface OrderActionsMenuProps {
 export function OrderActionsMenu({
   order,
   updating,
+  onEdit,
   onApprove,
   onDelete,
 }: OrderActionsMenuProps) {
@@ -22,6 +24,16 @@ export function OrderActionsMenu({
       className="inline-flex items-center justify-end gap-1"
       onClick={e => e.stopPropagation()}
     >
+      <button
+        type="button"
+        disabled={updating}
+        onClick={onEdit}
+        title="Edit order"
+        aria-label={`Edit order ${order.order_ref}`}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-50 disabled:opacity-40"
+      >
+        <EditIcon className="w-3.5 h-3.5" />
+      </button>
       {showApprove && (
         <button
           type="button"
@@ -53,6 +65,19 @@ function Spinner() {
     <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  )
+}
+
+function EditIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+      />
     </svg>
   )
 }

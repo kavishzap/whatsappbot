@@ -93,13 +93,12 @@ export function parseProductListPage(input: MessageInput): number | null {
   return Number.isNaN(n) || n < 0 ? null : n
 }
 
-export function parseQuantitySelection(input: MessageInput): number | 'custom' | null {
+export function parseQuantitySelection(input: MessageInput): number | null {
   if (input.type === 'list') {
-    if (input.value === 'sm_qty_custom') return 'custom'
     const match = input.value.match(/^sm_qty_(\d+)$/)
     if (match) {
       const qty = parseInt(match[1], 10)
-      if (qty >= 1 && qty <= 4) return qty
+      if (qty >= 1 && qty <= 3) return qty
     }
     return null
   }
@@ -112,7 +111,7 @@ export function parseQuantity(input: MessageInput): number | null {
   const digitMatch = input.value.trim().match(/\d+/)
   if (!digitMatch) return null
   const qty = parseInt(digitMatch[0], 10)
-  return qty >= 1 && qty <= 999 ? qty : null
+  return qty >= 1 && qty <= 3 ? qty : null
 }
 
 export function parseCustomerName(input: MessageInput): string | null {

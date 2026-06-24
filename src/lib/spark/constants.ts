@@ -7,9 +7,6 @@ export const DELIVERY_CONFIRMATION_MESSAGE =
 export const REMINDER_MESSAGE =
   'You still have an incomplete order with us. Tap below to continue where you left off.'
 
-/** Hours between reminders — 3 evenly spaced within the 24h WhatsApp window. */
-export const REMINDER_INACTIVITY_HOURS = 8
-
 export const MAURITIUS_REGIONS = [
   { id: 'region_north', name: 'North' },
   { id: 'region_east', name: 'East' },
@@ -31,12 +28,12 @@ export const MAURITIUS_DISTRICTS = [
   { id: 'city_savanne', name: 'Savanne' },
 ] as const
 
+export const MAX_ORDER_QUANTITY = 3
+
 export const QUANTITY_OPTIONS = [
   { id: 'qty_1', label: '1' },
   { id: 'qty_2', label: '2' },
   { id: 'qty_3', label: '3' },
-  { id: 'qty_4', label: '4' },
-  { id: 'qty_custom', label: 'Custom amount' },
 ] as const
 
 export const WELCOME_MENU_MESSAGE =
@@ -50,9 +47,12 @@ export const OTHER_QUERY_MESSAGE = `For other enquiries, contact us on WhatsApp:
 
 export const OTHER_QUERY_CTA_LABEL = 'Message us'
 
+/** WhatsApp reply button titles max 20 characters. */
+export const OTHER_QUERY_BUTTON_TITLE = 'Chat with support'
+
 export const MAIN_MENU_BUTTONS = [
   { id: 'menu_order_product', title: 'Order a Product' },
-  { id: 'menu_other_query', title: 'Other Query' },
+  { id: 'menu_other_query', title: OTHER_QUERY_BUTTON_TITLE },
 ] as const
 
 /** @deprecated Use MAIN_MENU_BUTTONS — kept for parse-input compatibility */

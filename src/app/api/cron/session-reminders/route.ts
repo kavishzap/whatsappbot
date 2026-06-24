@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { isCronAuthorized } from '@/lib/cron-auth'
 import { processSessionReminders } from '@/lib/spark/reminders'
 
-/** Call on a schedule (e.g. hourly) to nudge users who abandoned before selecting a region. */
+/** Daily batch at 20:00 Mauritius — nudge users with incomplete order flows. */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })

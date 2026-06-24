@@ -87,17 +87,7 @@ export interface IncomingWhatsAppMessage {
   }
 }
 
-import { REMINDER_INACTIVITY_HOURS } from './constants'
-
-/** True once a draft order exists (checkout past quantity). */
-export function isCheckoutStarted(session: WhatsAppSession): boolean {
-  return Boolean(session.draft_order_id)
-}
-
-/** @deprecated Region step removed — alias for isCheckoutStarted. */
-export function isRegionStepComplete(session: WhatsAppSession): boolean {
-  return isCheckoutStarted(session)
-}
+import { isDailyReminderEligible } from '@/lib/reminder-schedule'
 
 /** Flow is complete when session is idle (e.g. after confirmed order or explicit reset). */
 export function isFlowComplete(session: WhatsAppSession): boolean {
@@ -110,19 +100,5 @@ export function isAddMoreCheckoutReady(session: WhatsAppSession): boolean {
 }
 
 export function isReminderEligible(session: WhatsAppSession): boolean {
-  if (isFlowComplete(session)) return false
-  if ((session.reminder_count ?? 0) >= 3) return false
-  if (!session.last_inbound_at) return false
-
-  const count = session.reminder_count ?? 0
-  const anchor = count === 0 ? session.last_inbound_at : session.last_reminder_at
-  if (!anchor) return false
-
-  const hoursSinceAnchor = (Date.now() - new Date(anchor).getTime()) / (1000 * 60 * 60)
-  const hoursSinceInbound = (Date.now() - new Date(session.last_inbound_at).getTime()) / (1000 * 60 * 60)
-
-  return (
-    hoursSinceAnchor >= REMINDER_INACTIVITY_HOURS &&
-    hoursSinceInbound < 24
-  )
+  return isDailyReminderEligible(session)
 }

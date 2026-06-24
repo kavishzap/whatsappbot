@@ -11,7 +11,7 @@ import {
   buildSimpleOrderSummaryLines,
   buildWebOrderSummaryLines,
 } from '@/lib/order-summary-format'
-import { CUSTOM_QUANTITY_MESSAGE, QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
+import { QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
 import { REMINDER_MESSAGE, QUANTITY_OPTIONS, formatTotal } from '@/lib/spark/constants'
 import { findSodamaxProductById, isNewMachineProductId } from './products'
 import { sendSodamaxProductList } from './product-list'
@@ -177,11 +177,8 @@ export async function resumeSodamaxSessionFlow(
       break
 
     case 'awaiting_quantity':
-      await sendQuantityList(phone)
-      break
-
     case 'awaiting_quantity_custom':
-      await sendWhatsAppText(phone, CUSTOM_QUANTITY_MESSAGE)
+      await sendQuantityList(phone)
       break
 
     case 'awaiting_region':

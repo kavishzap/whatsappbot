@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import {
   displayOrderAddress,
   displayOrderCity,
@@ -16,38 +16,22 @@ import {
   type WhatsAppBotOrder,
 } from '@/lib/whatsapp-bot-orders'
 import { ORDER_STATUS_LABELS } from '@/lib/order-item-pivot'
+import {
+  BrandLabel,
+  DetailRow,
+  DetailSection,
+  ORDER_MODAL_SHELL,
+  StatusBadge,
+} from '@/components/orders/order-modal-shared'
 
 interface OrderReceiptModalProps {
   order: WhatsAppBotOrder | null
   updating?: boolean
   onClose: () => void
+  onEdit?: (order: WhatsAppBotOrder) => void
   onApprove: (order: WhatsAppBotOrder) => void
   onMarkComplete?: (order: WhatsAppBotOrder) => void
   onDelete?: (order: WhatsAppBotOrder) => void
-}
-
-function StatusBadge({ status }: { status: OrderStatus }) {
-  const styles: Record<OrderStatus, string> = {
-    draft: 'badge-neutral',
-    complete: 'badge-warning',
-    approved: 'badge-success',
-    rejected: 'badge-danger',
-  }
-
-  return <span className={styles[status]}>{ORDER_STATUS_LABELS[status]}</span>
-}
-
-function BrandLabel({ company }: { company: WhatsAppBotOrder['company'] }) {
-  if (company === 'sodamax') {
-    return <span className="text-orange-600 font-semibold">SodaMax</span>
-  }
-
-  return (
-    <>
-      <span className="text-brand-600 font-semibold">Spark</span>{' '}
-      <span className="text-rose-500 font-semibold">Distributors</span>
-    </>
-  )
 }
 
 function modalTitle(status: OrderStatus): string {
@@ -57,30 +41,11 @@ function modalTitle(status: OrderStatus): string {
   return 'Order details'
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[7.5rem_1fr] gap-x-3 gap-y-0.5 py-2 border-b border-ink-100 last:border-b-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{label}</dt>
-      <dd className="text-sm text-ink-800 break-words whitespace-pre-line">{value}</dd>
-    </div>
-  )
-}
-
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-xl border border-ink-100 bg-ink-50/60 overflow-hidden">
-      <p className="px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400 border-b border-ink-100 bg-white/60">
-        {title}
-      </p>
-      <dl className="px-3.5 py-1">{children}</dl>
-    </div>
-  )
-}
-
 export function OrderReceiptModal({
   order,
   updating = false,
   onClose,
+  onEdit,
   onApprove,
   onMarkComplete,
   onDelete,
@@ -121,7 +86,7 @@ export function OrderReceiptModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="order-modal-title"
-        className="relative bg-white rounded-2xl shadow-card border border-ink-200/80 w-full max-w-lg max-h-[min(90dvh,900px)] flex flex-col animate-fade-in mx-auto"
+        className={ORDER_MODAL_SHELL}
       >
         <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-ink-100 shrink-0">
           <div className="min-w-0">
@@ -216,8 +181,20 @@ export function OrderReceiptModal({
           )}
         </div>
 
-        {(onDelete || showApproveAction) && (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 px-4 sm:px-6 py-4 border-t border-ink-100 bg-ink-50/40 shrink-0">
+        {(onDelete || onEdit || showApproveAction) && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-4 border-t border-ink-100 bg-ink-50/40 shrink-0">
+            {onEdit && (
+              <button
+                type="button"
+                disabled={updating}
+                onClick={() => onEdit(order)}
+                className="btn-secondary w-full sm:w-auto sm:mr-auto"
+              >
+                Edit
+              </button>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 w-full sm:w-auto">
             {showDraftActions && (
               <button
                 type="button"
@@ -261,6 +238,7 @@ export function OrderReceiptModal({
                 Delete
               </button>
             )}
+            </div>
           </div>
         )}
       </div>

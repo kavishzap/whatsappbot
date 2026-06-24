@@ -14,14 +14,17 @@ import {
   formatOrderProductsList,
   formatOrderTotalQty,
   updateOrderStatus,
+  updateBotOrder,
   deleteBotOrder,
   type OrderStatus,
+  type UpdateBotOrderPayload,
   type WhatsAppBotOrder,
 } from '@/lib/whatsapp-bot-orders'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { OrderReceiptModal } from '@/components/orders/order-receipt-modal'
+import { OrderEditModal } from '@/components/orders/order-edit-modal'
 import { OrderItemPivotModal } from '@/components/orders/order-item-pivot-modal'
 import { OrderActionsMenu } from '@/components/orders/order-actions-menu'
 import { OrderDateFilter } from '@/components/orders/order-date-filter'
@@ -83,6 +86,7 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
   const [selectedOrder, setSelectedOrder] = useState<WhatsAppBotOrder | null>(null)
+  const [editingOrder, setEditingOrder] = useState<WhatsAppBotOrder | null>(null)
   const [pivotOpen, setPivotOpen] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<WhatsAppBotOrder | null>(null)
@@ -157,6 +161,29 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
       }
     },
     [company, toast]
+  )
+
+  const handleEdit = useCallback((order: WhatsAppBotOrder) => {
+    setSelectedOrder(null)
+    setEditingOrder(order)
+  }, [])
+
+  const handleSaveEdit = useCallback(
+    async (payload: UpdateBotOrderPayload) => {
+      if (!editingOrder) return
+      setUpdatingId(editingOrder.id)
+      try {
+        const updated = await updateBotOrder(payload)
+        setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)))
+        setEditingOrder(null)
+        toast.success('Order updated')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update order')
+      } finally {
+        setUpdatingId(null)
+      }
+    },
+    [editingOrder, toast]
   )
 
   const handleDelete = useCallback(async () => {
@@ -370,13 +397,14 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
           <OrderActionsMenu
             order={order}
             updating={updatingId === order.id}
+            onEdit={() => handleEdit(order)}
             onApprove={() => handleStatusChange(order, 'approved')}
             onDelete={() => setDeleteTarget(order)}
           />
         ),
       },
     ],
-    [handleStatusChange, updatingId]
+    [handleEdit, handleStatusChange, updatingId]
   )
 
   const brandLabel = company === 'sodamax' ? 'SodaMax' : 'Spark'
@@ -402,12 +430,21 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         order={selectedOrder}
         updating={selectedOrder ? updatingId === selectedOrder.id : false}
         onClose={() => setSelectedOrder(null)}
+        onEdit={handleEdit}
         onApprove={order => handleStatusChange(order, 'approved')}
         onMarkComplete={order => handleStatusChange(order, 'complete')}
         onDelete={order => {
           setSelectedOrder(null)
           setDeleteTarget(order)
         }}
+      />
+
+      <OrderEditModal
+        order={editingOrder}
+        company={company}
+        saving={editingOrder ? updatingId === editingOrder.id : false}
+        onClose={() => setEditingOrder(null)}
+        onSave={handleSaveEdit}
       />
 
       <OrderItemPivotModal

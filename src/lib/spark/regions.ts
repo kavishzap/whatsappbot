@@ -14,6 +14,6 @@ export async function sendRegionList(phone: string): Promise<void> {
 export async function sendDeliveryAddressPrompt(phone: string): Promise<void> {
   await sendWhatsAppText(
     phone,
-    '📍 Please enter your delivery address.'
+    '📍 Please enter your *Delivery Address*.'
   )
 }

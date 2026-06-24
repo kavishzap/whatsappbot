@@ -1,6 +1,6 @@
 import { sendWhatsAppText, sendWhatsAppButtons } from '@/lib/whatsapp'
 import { sendProductList } from './product-list'
-import { sendQuantityList, sendCustomQuantityPrompt } from './quantity-list'
+import { sendQuantityList } from './quantity-list'
 import { sendDeliveryAddressPrompt } from './regions'
 import { sendOrderSummary } from './order-summary'
 import { sendOrderNotesPrompt, SPARK_SKIP_NOTES_BUTTON } from './order-notes'
@@ -41,11 +41,8 @@ export async function resumeSessionFlow(phone: string, session: WhatsAppSession)
       break
 
     case 'awaiting_quantity':
-      await sendQuantityList(phone, { showBackToSummary: addMore })
-      break
-
     case 'awaiting_quantity_custom':
-      await sendCustomQuantityPrompt(phone, { showBackToSummary: addMore })
+      await sendQuantityList(phone, { showBackToSummary: addMore })
       break
 
     case 'awaiting_region':

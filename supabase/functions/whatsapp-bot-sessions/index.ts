@@ -19,12 +19,40 @@ const DEFAULT_SESSION = {
   last_reminder_at: null,
 }
 
-/** 3 reminders evenly spaced across the 24h WhatsApp window (8h apart). */
-const REMINDER_GAP_HOURS = 8
-const REMINDER_WINDOW_HOURS = 24
+/** 3 reminders max — one batch per day at 20:00 Mauritius time. */
+const REMINDER_MAX_COUNT = 3
+const REMINDER_TIMEZONE = 'Indian/Mauritius'
 
 /** Sessions still in the funnel before a draft order is created. */
 const PRE_DRAFT_IGNORED_STATES = ['idle', 'awaiting_menu_selection']
+
+function getMauritiusDateKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: REMINDER_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+function isDailyReminderCandidate(row: {
+  state: string
+  reminder_count?: number | null
+  last_inbound_at?: string | null
+  last_reminder_at?: string | null
+}): boolean {
+  if (row.state === 'idle') return false
+  if ((row.reminder_count ?? 0) >= REMINDER_MAX_COUNT) return false
+  if (!row.last_inbound_at) return false
+
+  const today = getMauritiusDateKey(new Date())
+  if (row.last_reminder_at) {
+    const lastReminderDay = getMauritiusDateKey(new Date(row.last_reminder_at))
+    if (lastReminderDay === today) return false
+  }
+
+  return true
+}
 
 function parseListCompany(value: string | null): 'spark' | 'sodamax' | null {
   if (value === 'spark' || value === 'sodamax') return value
@@ -130,19 +158,12 @@ Deno.serve(async (req) => {
     const listCompany = url.searchParams.get('list_company')
 
     if (req.method === 'GET' && list === 'reminder_candidates') {
-      const gapMs = REMINDER_GAP_HOURS * 60 * 60 * 1000
-      const windowStart = new Date(
-        Date.now() - REMINDER_WINDOW_HOURS * 60 * 60 * 1000
-      ).toISOString()
-      const inactiveSince = new Date(Date.now() - gapMs).toISOString()
-
       let query = supabase
         .from('whatsapp_sessions')
         .select('*')
         .neq('state', 'idle')
-        .lt('reminder_count', 3)
+        .lt('reminder_count', REMINDER_MAX_COUNT)
         .not('last_inbound_at', 'is', null)
-        .gt('last_inbound_at', windowStart)
 
       if (listCompany === 'spark' || listCompany === 'sodamax') {
         query = query.eq('company', listCompany)
@@ -151,15 +172,7 @@ Deno.serve(async (req) => {
       const { data, error } = await query
       if (error) throw error
 
-      const candidates = (data ?? []).filter((row) => {
-        const count = row.reminder_count ?? 0
-        if (count >= 3) return false
-
-        const anchor = count === 0 ? row.last_inbound_at : row.last_reminder_at
-        if (!anchor) return false
-
-        return new Date(anchor).getTime() <= new Date(inactiveSince).getTime()
-      })
+      const candidates = (data ?? []).filter(isDailyReminderCandidate)
 
       return jsonResponse({ success: true, data: candidates })
     }

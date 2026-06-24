@@ -3,11 +3,15 @@ import { signCheckoutSession } from './checkout-session'
 export const WELCOME_MENU_MESSAGE =
   'Hello! 👋 Welcome to SodaMax.\n\nHow can we help you today?'
 
+import { OTHER_QUERY_BUTTON_TITLE } from '@/lib/spark/constants'
+
+export { OTHER_QUERY_BUTTON_TITLE }
+
 /** WhatsApp reply button titles are limited to 20 characters. */
 export const MAIN_MENU_BUTTONS = [
   { id: 'sm_new_machine', title: 'SodaMax Machine' },
   { id: 'sm_order_product', title: 'Refill & Products' },
-  { id: 'sm_other_query', title: 'Other Query' },
+  { id: 'sm_other_query', title: OTHER_QUERY_BUTTON_TITLE },
 ] as const
 
 export const NEW_MACHINE_COLOR_OPTIONS = [

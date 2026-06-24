@@ -74,6 +74,17 @@ export async function getSession(phone: string): Promise<WhatsAppSession> {
   }
 }
 
+/** Load session + cart without resetting reminder timers (for resume/reminder flows). */
+export async function getSessionWithCart(phone: string): Promise<WhatsAppSession> {
+  try {
+    const data = await fetchSession<WhatsAppSession>(SPARK_COMPANY, phone, { includeCart: true })
+    return normalizeSession(data)
+  } catch (err) {
+    console.error('getSessionWithCart error:', err)
+    return { phone, ...DEFAULT_SESSION, updated_at: new Date().toISOString() }
+  }
+}
+
 export async function updateSession(
   phone: string,
   updates: Partial<Omit<WhatsAppSession, 'phone' | 'updated_at'>>,

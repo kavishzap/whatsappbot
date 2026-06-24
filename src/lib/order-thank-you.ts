@@ -1,5 +1,5 @@
 import { sendWhatsAppButtons } from '@/lib/whatsapp'
-import { DELIVERY_CONFIRMATION_MESSAGE, formatTotal } from '@/lib/spark/constants'
+import { DELIVERY_CONFIRMATION_MESSAGE, formatTotal, OTHER_QUERY_BUTTON_TITLE } from '@/lib/spark/constants'
 
 export function buildOrderThankYouMessage(orderRef: string, total: number): string {
   return [
@@ -21,6 +21,6 @@ export async function sendOrderThankYouWithOtherQuery(
   button: { id: string; title?: string }
 ): Promise<void> {
   await sendWhatsAppButtons(phone, buildOrderThankYouMessage(orderRef, total), [
-    { id: button.id, title: button.title ?? 'Other Query' },
+    { id: button.id, title: button.title ?? OTHER_QUERY_BUTTON_TITLE },
   ])
 }
