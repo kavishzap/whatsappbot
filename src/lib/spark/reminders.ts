@@ -1,16 +1,15 @@
 import { sendWhatsAppText, isWhatsAppAuthError } from '@/lib/whatsapp'
 import { runWithWhatsAppLine } from '@/lib/whatsapp-line'
 import { isDailyReminderEligible } from '@/lib/reminder-schedule'
+import { claimSessionReminder } from '@/lib/session-reminder-claim'
 import {
   getSession,
   getSessionWithCart,
   listReminderCandidateSessions as listSparkReminderCandidates,
-  updateSession as updateSparkSession,
 } from './session'
 import {
   getSession as getSodamaxSession,
   listReminderCandidateSessions as listSodamaxReminderCandidates,
-  updateSession as updateSodamaxSession,
 } from '@/lib/sodamax/session'
 import { resumeSessionFlow as resumeSparkSessionFlow } from './resume-flow'
 import { resumeSodamaxSessionFlow } from '../sodamax/resume-flow'
@@ -67,24 +66,30 @@ export async function processSessionReminders(): Promise<{
     }
 
     try {
+      let didSend = false
+
       await runWithWhatsAppLine(session.company, async () => {
+        const claimed = await claimSessionReminder(session.company, session.phone)
+        if (!claimed) {
+          return
+        }
+
         if (session.company === 'sodamax') {
           const fresh = await loadSodamaxSessionForResume(session.phone)
           await resumeSodamaxSessionFlow(session.phone, fresh)
-          await updateSodamaxSession(session.phone, {
-            reminder_count: (fresh.reminder_count ?? 0) + 1,
-            last_reminder_at: new Date().toISOString(),
-          })
         } else {
           const fresh = await loadSparkSessionForResume(session.phone, session as WhatsAppSession)
           await resumeSparkSessionFlow(session.phone, fresh)
-          await updateSparkSession(session.phone, {
-            reminder_count: (fresh.reminder_count ?? 0) + 1,
-            last_reminder_at: new Date().toISOString(),
-          })
         }
+
+        didSend = true
       })
-      sent++
+
+      if (didSend) {
+        sent++
+      } else {
+        skipped++
+      }
     } catch (err) {
       errors++
       if (isWhatsAppAuthError(err)) {

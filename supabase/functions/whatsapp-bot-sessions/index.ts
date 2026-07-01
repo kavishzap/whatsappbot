@@ -54,6 +54,69 @@ function isDailyReminderCandidate(row: {
   return true
 }
 
+/** WhatsApp session messages require an inbound within this window. */
+const REMINDER_WHATSAPP_WINDOW_HOURS = 24
+
+function isReminderClaimEligible(
+  row: {
+    state: string
+    reminder_count?: number | null
+    last_inbound_at?: string | null
+    last_reminder_at?: string | null
+  },
+  now = new Date()
+): boolean {
+  if (!isDailyReminderCandidate(row)) return false
+
+  const hoursSinceInbound =
+    (now.getTime() - new Date(String(row.last_inbound_at)).getTime()) / (1000 * 60 * 60)
+  if (hoursSinceInbound >= REMINDER_WHATSAPP_WINDOW_HOURS) return false
+
+  return true
+}
+
+async function claimSessionReminderRow(
+  supabase: ReturnType<typeof getServiceClient>,
+  phone: string,
+  company: 'spark' | 'sodamax'
+) {
+  const { data: row, error: readError } = await supabase
+    .from('whatsapp_sessions')
+    .select('*')
+    .eq('phone', phone)
+    .eq('company', company)
+    .maybeSingle()
+
+  if (readError) throw readError
+  if (!row || !isReminderClaimEligible(row)) return null
+
+  const now = new Date().toISOString()
+  const currentCount = row.reminder_count ?? 0
+
+  let updateQuery = supabase
+    .from('whatsapp_sessions')
+    .update({
+      reminder_count: currentCount + 1,
+      last_reminder_at: now,
+      updated_at: now,
+    })
+    .eq('phone', phone)
+    .eq('company', company)
+    .neq('state', 'idle')
+    .lt('reminder_count', REMINDER_MAX_COUNT)
+    .eq('reminder_count', currentCount)
+
+  if (row.last_reminder_at) {
+    updateQuery = updateQuery.eq('last_reminder_at', row.last_reminder_at)
+  } else {
+    updateQuery = updateQuery.is('last_reminder_at', null)
+  }
+
+  const { data: updated, error: updateError } = await updateQuery.select().maybeSingle()
+  if (updateError) throw updateError
+  return updated
+}
+
 function parseListCompany(value: string | null): 'spark' | 'sodamax' | null {
   if (value === 'spark' || value === 'sodamax') return value
   return null
@@ -423,6 +486,34 @@ Deno.serve(async (req) => {
           cart_items: [],
         },
       })
+    }
+
+    if (req.method === 'POST') {
+      let body: Record<string, unknown>
+      try {
+        body = await req.json()
+      } catch {
+        return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400)
+      }
+
+      if (body.action === 'claim_reminder') {
+        const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+        const company = parseListCompany(
+          typeof body.company === 'string' ? body.company : null
+        )
+
+        if (!phone || !company) {
+          return jsonResponse(
+            { success: false, error: 'Missing phone or invalid company (spark|sodamax)' },
+            400
+          )
+        }
+
+        const claimed = await claimSessionReminderRow(supabase, phone, company)
+        return jsonResponse({ success: true, data: claimed })
+      }
+
+      return jsonResponse({ success: false, error: 'Unknown action' }, 400)
     }
 
     return jsonResponse({ success: false, error: 'Method not allowed' }, 405)
