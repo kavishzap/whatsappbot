@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   fetchBotOrders,
   formatOrderDate,
@@ -82,6 +83,8 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
+  const searchParams = useSearchParams()
+  const initialOrderRef = searchParams.get('ref')?.trim() ?? ''
   const [orders, setOrders] = useState<WhatsAppBotOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
@@ -559,6 +562,7 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         defaultSort={{ key: 'date', direction: 'desc' }}
         searchPlaceholder="Search ref, customer, phone, item…"
         searchFilter={matchesOrderSearch}
+        initialSearchQuery={initialOrderRef}
         onRowClick={setSelectedOrder}
         filterExtras={<OrderDateFilter value={dateFilter} onChange={setDateFilter} />}
         extrasActive={isOrderDateFilterActive(dateFilter)}

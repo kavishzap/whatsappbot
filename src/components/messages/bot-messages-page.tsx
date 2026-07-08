@@ -16,11 +16,18 @@ import {
   formatSessionState,
   sessionWhatsAppMessageUrl,
 } from '@/lib/whatsapp-session-labels'
+import {
+  MESSAGE_STATUS_LABELS,
+  formatMessageStatus,
+  type MessageStatus,
+} from '@/lib/message-status'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import { useToast } from '@/components/ui/toast'
 import { OrderDateFilter } from '@/components/orders/order-date-filter'
 import { CollapsibleKpiPanel } from '@/components/ui/collapsible-kpi-panel'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
+import { MessageStatusBadge } from '@/components/messages/message-status-badge'
+import { MessageLeadModal } from '@/components/messages/message-lead-modal'
 import {
   DEFAULT_TABLE_DATE_FILTER,
   filterByDateField,
@@ -36,6 +43,9 @@ function matchesSessionSearch(session: WhatsAppBotSessionMessage, query: string)
     session.phone.includes(q) ||
     formatSessionPhone(session.phone).toLowerCase().includes(q) ||
     formatSessionState(session.state).toLowerCase().includes(q) ||
+    formatMessageStatus(session.message_status).toLowerCase().includes(q) ||
+    (session.message_notes ?? '').toLowerCase().includes(q) ||
+    (session.customer_name ?? '').toLowerCase().includes(q) ||
     (session.product_name ?? '').toLowerCase().includes(q)
   )
 }
@@ -62,7 +72,9 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
   const [loading, setLoading] = useState(true)
   const [stateFilter, setStateFilter] = useState('')
   const [productFilter, setProductFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [dateFilter, setDateFilter] = useState<OrderDateFilterState>(DEFAULT_TABLE_DATE_FILTER)
+  const [activeSession, setActiveSession] = useState<WhatsAppBotSessionMessage | null>(null)
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
@@ -116,6 +128,47 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
         .map(([id, name]) => ({ value: id, label: name })),
     ]
   }, [sessions])
+
+  const statusOptions = useMemo(
+    () => [
+      { value: '', label: 'All statuses' },
+      { value: '__open__', label: 'Open' },
+      ...(['called', 'message_sent', 'call_later', 'rejected'] as MessageStatus[]).map(
+        status => ({
+          value: status,
+          label: MESSAGE_STATUS_LABELS[status],
+        })
+      ),
+    ],
+    []
+  )
+
+  const handleSessionUpdated = useCallback((updated: WhatsAppBotSessionMessage) => {
+    setSessions(prev =>
+      prev.map(session =>
+        session.phone === updated.phone
+          ? { ...session, ...updated, product_name: session.product_name }
+          : session
+      )
+    )
+    setActiveSession(prev =>
+      prev?.phone === updated.phone
+        ? { ...prev, ...updated, product_name: prev.product_name }
+        : prev
+    )
+  }, [])
+
+  const handleSessionConverted = useCallback(
+    (result: { order_id: string; order_ref: string; phone: string }) => {
+      setSessions(prev => prev.filter(session => session.phone !== result.phone))
+      setActiveSession(null)
+    },
+    []
+  )
+
+  const openSession = useCallback((session: WhatsAppBotSessionMessage) => {
+    setActiveSession(session)
+  }, [])
 
   const sessionsInDateRange = useMemo(
     () => filterByDateField(sessions, dateFilter, sessionActiveAt),
@@ -192,7 +245,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
       {
         key: 'product',
         header: 'Product',
-        width: '22%',
+        width: '18%',
         truncateCell: true,
         sortValue: session => session.product_name ?? '',
         render: session => (
@@ -202,9 +255,17 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
         ),
       },
       {
+        key: 'status',
+        header: 'Status',
+        width: '14%',
+        truncateCell: true,
+        sortValue: session => formatMessageStatus(session.message_status),
+        render: session => <MessageStatusBadge status={session.message_status} />,
+      },
+      {
         key: 'follow_up',
         header: 'Follow up',
-        width: '14%',
+        width: '12%',
         shrinkCol: true,
         align: 'right',
         sortValue: session => formatSessionState(session.state),
@@ -226,8 +287,27 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
           )
         },
       },
+      {
+        key: 'actions',
+        header: 'Actions',
+        width: '10%',
+        shrinkCol: true,
+        align: 'right',
+        render: session => (
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation()
+              openSession(session)
+            }}
+            className="btn-secondary !py-1.5 !px-2.5 text-xs whitespace-nowrap"
+          >
+            Manage
+          </button>
+        ),
+      },
     ],
-    [company]
+    [company, openSession]
   )
 
   const brandLabel = company === 'sodamax' ? 'SodaMax' : 'Spark'
@@ -278,6 +358,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
           setDateFilter(DEFAULT_TABLE_DATE_FILTER)
           setStateFilter('')
           setProductFilter('')
+          setStatusFilter('')
         }}
         filters={[
           {
@@ -289,6 +370,17 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             match: (session, value) => session.state === value,
           },
           {
+            id: 'status-filter',
+            label: 'Status',
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: statusOptions,
+            match: (session, value) => {
+              if (value === '__open__') return !session.message_status
+              return session.message_status === value
+            },
+          },
+          {
             id: 'product-filter',
             label: 'Product',
             value: productFilter,
@@ -297,6 +389,7 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             match: (session, value) => session.selected_item_id === value,
           },
         ]}
+        onRowClick={openSession}
         toolbar={
           <button
             type="button"
@@ -322,26 +415,40 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
                 <span className="font-medium text-ink-900 tabular-nums">
                   {formatSessionPhone(session.phone)}
                 </span>
-                <span className="text-xs font-medium text-ink-500 shrink-0">
-                  {formatSessionState(session.state)}
-                </span>
+                <MessageStatusBadge status={session.message_status} />
               </div>
+              <p className="text-xs font-medium text-ink-500">
+                {formatSessionState(session.state)}
+              </p>
               {session.product_name && (
                 <p className="text-sm text-ink-700 truncate">{session.product_name}</p>
               )}
               <p className="text-xs text-ink-400 mt-1">
                 {formatSessionDate(session.last_inbound_at ?? session.updated_at)}
               </p>
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20"
-                title={message}
-              >
-                <WhatsAppIcon className="w-3.5 h-3.5" />
-                Send follow-up
-              </a>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation()
+                    openSession(session)
+                  }}
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  Manage
+                </button>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={event => event.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20"
+                  title={message}
+                >
+                  <WhatsAppIcon className="w-3.5 h-3.5" />
+                  Send follow-up
+                </a>
+              </div>
             </div>
           )
         }}
@@ -351,6 +458,15 @@ export function BotMessagesPage({ company }: BotMessagesPageProps) {
             WhatsApp but did not send a message) appear in the overview above once synced.
           </p>
         }
+      />
+
+      <MessageLeadModal
+        key={activeSession?.phone ?? 'closed'}
+        session={activeSession}
+        company={company}
+        onClose={() => setActiveSession(null)}
+        onUpdated={handleSessionUpdated}
+        onConverted={handleSessionConverted}
       />
     </div>
   )

@@ -26,6 +26,14 @@ const REMINDER_TIMEZONE = 'Indian/Mauritius'
 /** Sessions with no order draft yet — includes welcome menu after first message. */
 const PRE_DRAFT_IGNORED_STATES = ['idle']
 
+const VALID_MESSAGE_STATUSES = new Set([
+  'called',
+  'message_sent',
+  'call_later',
+  'rejected',
+  'complete',
+])
+
 function getMauritiusDateKey(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: REMINDER_TIMEZONE,
@@ -197,6 +205,9 @@ function cleanSessionPayload(body: Record<string, unknown>) {
     'reminder_count',
     'last_inbound_at',
     'last_reminder_at',
+    'message_status',
+    'message_notes',
+    'converted_order_id',
   ]
 
   const payload: Record<string, unknown> = {}
@@ -259,11 +270,15 @@ Deno.serve(async (req) => {
           quantity,
           region,
           city,
+          address,
           customer_name,
           total,
           reminder_count,
           last_inbound_at,
           updated_at,
+          message_status,
+          message_notes,
+          converted_order_id,
           item:whatsapp_bot_items (
             product_name
           )
@@ -271,6 +286,7 @@ Deno.serve(async (req) => {
         .eq('company', listCompanyFilter)
         .is('draft_order_id', null)
         .not('state', 'in', `(${PRE_DRAFT_IGNORED_STATES.join(',')})`)
+        .or('message_status.is.null,message_status.neq.complete')
         .order('updated_at', { ascending: false })
 
       if (error) throw error
@@ -364,6 +380,105 @@ Deno.serve(async (req) => {
           cart_items: cartItems,
         },
       })
+    }
+
+    if (req.method === 'PATCH') {
+      let body: Record<string, unknown>
+      try {
+        body = await req.json()
+      } catch {
+        return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400)
+      }
+
+      const patchPhone = typeof body.phone === 'string' ? body.phone.trim() : ''
+      const patchCompany = parseListCompany(
+        typeof body.company === 'string' ? body.company : null
+      )
+
+      if (!patchPhone || !patchCompany) {
+        return jsonResponse(
+          { success: false, error: 'Missing phone or invalid company (spark|sodamax)' },
+          400
+        )
+      }
+
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      }
+
+      if ('message_status' in body) {
+        const status =
+          typeof body.message_status === 'string' ? body.message_status.trim() : null
+        if (status && !VALID_MESSAGE_STATUSES.has(status)) {
+          return jsonResponse({ success: false, error: 'Invalid message_status' }, 400)
+        }
+        updates.message_status = status || null
+      }
+
+      if ('message_notes' in body) {
+        updates.message_notes =
+          typeof body.message_notes === 'string' && body.message_notes.trim()
+            ? body.message_notes.trim()
+            : null
+      }
+
+      if ('converted_order_id' in body) {
+        updates.converted_order_id =
+          typeof body.converted_order_id === 'string' && body.converted_order_id.trim()
+            ? body.converted_order_id.trim()
+            : null
+      }
+
+      const resetFields = [
+        'state',
+        'draft_order_id',
+        'selected_item_id',
+        'quantity',
+        'region',
+        'city',
+        'address',
+        'customer_name',
+        'total',
+      ] as const
+
+      for (const key of resetFields) {
+        if (key in body) {
+          updates[key] = body[key] ?? null
+        }
+      }
+
+      if (Object.keys(updates).length === 1) {
+        return jsonResponse({ success: false, error: 'No fields to update' }, 400)
+      }
+
+      const { data, error } = await supabase
+        .from('whatsapp_sessions')
+        .update(updates)
+        .eq('phone', patchPhone)
+        .eq('company', patchCompany)
+        .select(`
+          phone,
+          company,
+          state,
+          selected_item_id,
+          quantity,
+          region,
+          city,
+          address,
+          customer_name,
+          total,
+          reminder_count,
+          last_inbound_at,
+          updated_at,
+          message_status,
+          message_notes,
+          converted_order_id
+        `)
+        .single()
+
+      if (error) throw error
+
+      return jsonResponse({ success: true, data })
     }
 
     if (req.method === 'PUT') {

@@ -67,7 +67,7 @@ import {
 import { scheduleSodamaxFlavourPromo } from './promo-schedule'
 import { QUANTITY_LIST_HEADER } from '@/lib/spark/quantity-list'
 import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
-import { buildCityIdPatch } from '@/lib/spark/match-city'
+import { buildCityIdPatch, matchCityFromAddress } from '@/lib/spark/match-city'
 import { sendOrderThankYouWithOtherQuery } from '@/lib/order-thank-you'
 import {
   formatBotItemLineWithPrice,
@@ -732,7 +732,16 @@ async function handleDeliveryAddress(
     return
   }
 
-  await proceedToConfirmWithProfileName(phone, session, deliveryAddress, profileName)
+  const match = await matchCityFromAddress('sodamax', deliveryAddress, session.region, phone)
+
+  await proceedToConfirmWithProfileName(
+    phone,
+    session,
+    deliveryAddress,
+    profileName,
+    undefined,
+    match.cityId
+  )
 }
 
 async function handleWebCheckout(phone: string, input: MessageInput, profileName?: string): Promise<void> {
@@ -947,7 +956,8 @@ async function proceedToConfirmWithProfileName(
   session: SodamaxSession,
   deliveryAddress: string,
   profileName?: string,
-  fallbackInput?: MessageInput
+  fallbackInput?: MessageInput,
+  matchedCityId?: string | null
 ): Promise<void> {
   const customerName =
     resolveCustomerName(profileName, session) ??
@@ -969,7 +979,9 @@ async function proceedToConfirmWithProfileName(
     return
   }
 
-  const cityIdPatch = await buildCityIdPatch('sodamax', deliveryAddress, session.region)
+  const cityIdPatch = matchedCityId
+    ? { city_id: matchedCityId }
+    : await buildCityIdPatch('sodamax', deliveryAddress, session.region, phone)
 
   const patchResult = await patchDraftOrder(session.draft_order_id, {
     company: 'sodamax',

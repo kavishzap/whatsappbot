@@ -259,9 +259,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Missing required field: items' }, 400)
       }
 
-      const required = isDraft
-        ? (['customer_phone_number', 'city'] as const)
-        : (['customer_name', 'customer_phone_number', 'city', 'address'] as const)
+      const required = ['customer_phone_number', 'city'] as const
 
       for (const field of required) {
         if (body[field] === undefined || body[field] === null || body[field] === '') {
@@ -285,21 +283,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      const customer_name = isDraft
-        ? typeof body.customer_name === 'string' && body.customer_name.trim()
+      const customer_name =
+        typeof body.customer_name === 'string' && body.customer_name.trim()
           ? body.customer_name.trim()
           : null
-        : String(body.customer_name ?? '').trim()
 
-      if (!isDraft && !customer_name) {
-        return jsonResponse({ success: false, error: 'Missing required field: customer_name' }, 400)
-      }
-
-      const address = isDraft
-        ? typeof body.address === 'string' && body.address.trim()
-          ? body.address
+      const address =
+        typeof body.address === 'string' && body.address.trim()
+          ? body.address.trim()
           : '—'
-        : body.address
 
       const total =
         body.total !== undefined && body.total !== null

@@ -3,7 +3,11 @@ import {
   handleOptions,
   jsonResponse,
 } from '../_shared/http.ts'
-import { fetchActiveCities, resolveCityFromAddress } from '../_shared/match-city.ts'
+import {
+  fetchActiveCities,
+  logCityMatchConfirmation,
+  resolveCityFromAddress,
+} from '../_shared/match-city.ts'
 
 function parseCompany(value: string | null): string | null {
   if (value === 'spark' || value === 'sodamax') return value
@@ -42,7 +46,18 @@ Deno.serve(async (req) => {
     const supabase = getServiceClient()
 
     if (req.method === 'POST') {
-      let body: { company?: string; region?: string; address?: string }
+      let body: {
+        company?: string
+        region?: string
+        address?: string
+        phone?: string
+        action?: string
+        predicted_city_id?: string | null
+        confirmed_city_id?: string
+        predicted_score?: number | null
+        normalized_address?: string | null
+        was_correct?: boolean
+      }
 
       try {
         body = await req.json()
@@ -58,14 +73,43 @@ Deno.serve(async (req) => {
         )
       }
 
+      if (body.action === 'confirm_city_match') {
+        const address = typeof body.address === 'string' ? body.address.trim() : ''
+        const confirmedCityId =
+          typeof body.confirmed_city_id === 'string' ? body.confirmed_city_id.trim() : ''
+
+        if (!address || !confirmedCityId) {
+          return jsonResponse(
+            { success: false, error: 'Missing address or confirmed_city_id' },
+            400
+          )
+        }
+
+        await logCityMatchConfirmation(supabase, {
+          raw_address: address,
+          normalized_address: body.normalized_address ?? null,
+          predicted_city_id: body.predicted_city_id ?? null,
+          confirmed_city_id: confirmedCityId,
+          predicted_score:
+            typeof body.predicted_score === 'number' ? body.predicted_score : null,
+          was_correct: body.was_correct === true,
+          whatsapp_user_id: typeof body.phone === 'string' ? body.phone : null,
+        })
+
+        return jsonResponse({ success: true })
+      }
+
       const region = parseRegion(typeof body.region === 'string' ? body.region : null)
       const address = typeof body.address === 'string' ? body.address.trim() : ''
+      const phone = typeof body.phone === 'string' ? body.phone.trim() : null
 
       if (address.length < 5) {
         return jsonResponse({ success: false, error: 'Address too short' }, 400)
       }
 
-      const match = await resolveCityFromAddress(supabase, address, region ?? undefined)
+      const match = await resolveCityFromAddress(supabase, address, region ?? undefined, {
+        phone,
+      })
 
       console.log('whatsapp-cities match', {
         company,
@@ -73,6 +117,7 @@ Deno.serve(async (req) => {
         matched: Boolean(match.city_id),
         city_name: match.city_name,
         score: match.score ?? null,
+        confidence: match.confidence ?? null,
         method: match.method ?? null,
       })
 

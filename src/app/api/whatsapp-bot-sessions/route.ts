@@ -56,3 +56,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
+
+export async function PATCH(request: Request) {
+  const user = await requireAuth()
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const body = await request.json()
+    const result = await invokeEdgeFunction('whatsapp-bot-sessions', {
+      method: 'PATCH',
+      body,
+    })
+    return NextResponse.json({ success: true, data: result.data })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+}

@@ -114,12 +114,12 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-ink-100 bg-ink-50/40 shrink-0">
+        <div className="flex flex-nowrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-ink-100 bg-ink-50/40 shrink-0 overflow-x-auto">
           <OrderDateFilter value={dateFilter} onChange={setDateFilter} />
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as '' | OrderStatus)}
-            className="select-field min-w-[9.5rem]"
+            className="select-field shrink-0 min-w-[9.5rem] h-8 sm:h-10 text-xs sm:text-sm"
             aria-label="Filter by status"
           >
             {STATUS_OPTIONS.map(option => (
@@ -128,35 +128,34 @@ export function OrderItemPivotModal({ open, orders, company, onClose }: OrderIte
               </option>
             ))}
           </select>
-          <div className="flex items-center gap-2 sm:ml-auto">
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="btn-secondary !py-1.5 !px-3 text-sm"
-              >
-                Clear filters
-              </button>
-            )}
-            <span className="text-sm text-ink-500 tabular-nums">
-              {pivotRows.length} product{pivotRows.length === 1 ? '' : 's'} · {totalQty} units ·{' '}
-              {formatOrderTotal(totalAmount)}
-            </span>
+          {hasActiveFilters && (
             <button
               type="button"
-              disabled={pivotRows.length === 0}
-              onClick={() =>
-                downloadCsvRows(
-                  `${company}-item-pivot-${toDateInputValue(new Date())}.csv`,
-                  pivotRows,
-                  ITEM_PIVOT_EXPORT_COLUMNS
-                )
-              }
-              className="btn-secondary !py-1.5 !px-3 text-sm"
+              onClick={clearFilters}
+              className="btn-secondary shrink-0 !py-1.5 !px-3 text-xs sm:text-sm whitespace-nowrap"
             >
-              Export CSV
+              Clear filters
             </button>
-          </div>
+          )}
+          <span className="text-xs sm:text-sm text-ink-500 tabular-nums whitespace-nowrap shrink-0">
+            {pivotRows.length} product{pivotRows.length === 1 ? '' : 's'} · {totalQty} units ·{' '}
+            {formatOrderTotal(totalAmount)}
+          </span>
+          <div className="flex-1 min-w-2 shrink" aria-hidden="true" />
+          <button
+            type="button"
+            disabled={pivotRows.length === 0}
+            onClick={() =>
+              downloadCsvRows(
+                `${company}-item-pivot-${toDateInputValue(new Date())}.csv`,
+                pivotRows,
+                ITEM_PIVOT_EXPORT_COLUMNS
+              )
+            }
+            className="btn-secondary shrink-0 !py-1.5 !px-3 text-xs sm:text-sm whitespace-nowrap"
+          >
+            Export CSV
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">

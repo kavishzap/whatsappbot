@@ -55,7 +55,7 @@ import {
 } from './constants'
 import { getCachedMediaId, setCachedMediaId } from './media-cache'
 import { sendProcessErrorWithSupport } from './process-error'
-import { buildCityIdPatch } from './match-city'
+import { buildCityIdPatch, matchCityFromAddress } from './match-city'
 import { parseOrderNotesText, saveDraftOrderNotes, sendOrderNotesPrompt, SPARK_SKIP_NOTES_BUTTON, isSkipNotesAnswer } from './order-notes'
 import type { BotItem, IncomingWhatsAppMessage, MessageInput, WhatsAppSession } from './types'
 import { isAddMoreCheckoutReady } from './types'
@@ -85,12 +85,15 @@ function persistSession(
 async function applyCityMatchToDraft(
   orderId: string,
   deliveryAddress: string,
-  region?: string | null
+  region?: string | null,
+  cityId?: string | null
 ): Promise<void> {
   try {
-    const cityIdPatch = await buildCityIdPatch('spark', deliveryAddress, region)
-    if (cityIdPatch.city_id) {
-      await patchDraftOrder(orderId, { company: 'spark', ...cityIdPatch })
+    const city_id =
+      cityId ??
+      (await buildCityIdPatch('spark', deliveryAddress, region)).city_id
+    if (city_id) {
+      await patchDraftOrder(orderId, { company: 'spark', city_id })
     }
   } catch (err) {
     console.error('Deferred city match failed:', err)
@@ -720,7 +723,16 @@ async function handleDeliveryAddress(
     return
   }
 
-  await proceedToConfirmWithProfileName(phone, session, deliveryAddress, profileName)
+  const match = await matchCityFromAddress('spark', deliveryAddress, session.region, phone)
+
+  await proceedToConfirmWithProfileName(
+    phone,
+    session,
+    deliveryAddress,
+    profileName,
+    undefined,
+    match.cityId
+  )
 }
 
 async function proceedToConfirmWithProfileName(
@@ -728,7 +740,8 @@ async function proceedToConfirmWithProfileName(
   session: WhatsAppSession,
   deliveryAddress: string,
   profileName?: string,
-  fallbackInput?: MessageInput
+  fallbackInput?: MessageInput,
+  matchedCityId?: string | null
 ): Promise<void> {
   const customerName =
     resolveCustomerName(profileName, session) ??
@@ -777,7 +790,12 @@ async function proceedToConfirmWithProfileName(
     { previous: session, includeCart: true }
   )
 
-  void applyCityMatchToDraft(session.draft_order_id, deliveryAddress, session.region)
+  void applyCityMatchToDraft(
+    session.draft_order_id,
+    deliveryAddress,
+    session.region,
+    matchedCityId
+  )
 }
 
 async function handleRemoveLastItem(phone: string, session: WhatsAppSession): Promise<void> {

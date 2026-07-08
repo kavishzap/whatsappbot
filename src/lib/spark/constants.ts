@@ -5,7 +5,7 @@ export const DELIVERY_CONFIRMATION_MESSAGE =
   'We will contact you within 2 days for delivery.'
 
 export const REMINDER_MESSAGE =
-  'You still have an incomplete order with us. Tap below to continue where you left off.'
+  '🛒 You still have an incomplete order with us. Tap below to continue where you left off. 👇'
 
 export const MAURITIUS_REGIONS = [
   { id: 'region_north', name: 'North' },

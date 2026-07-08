@@ -53,6 +53,8 @@ interface DynamicTableProps<T> {
   loading?: boolean
   searchPlaceholder?: string
   searchFilter?: (row: T, query: string) => boolean
+  /** Pre-fill the search box (e.g. from URL ?ref=). */
+  initialSearchQuery?: string
   filters?: DynamicTableFilter<T>[]
   filterExtras?: ReactNode
   /** When true, filterExtras (e.g. date range) count as active for the clear button. */
@@ -262,6 +264,7 @@ export function DynamicTable<T>({
   loading = false,
   searchPlaceholder = 'Search…',
   searchFilter,
+  initialSearchQuery = '',
   filters = [],
   filterExtras,
   extrasActive = false,
@@ -282,7 +285,7 @@ export function DynamicTable<T>({
   exportConfig,
   onExportReady,
 }: DynamicTableProps<T>) {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize)
   const [sortKey, setSortKey] = useState<string | null>(defaultSort?.key ?? null)
@@ -550,7 +553,12 @@ export function DynamicTable<T>({
             <div
               key={rowKey(row)}
               {...getRowDropProps(row)}
-              className={mergeClassNames('flex items-start gap-2', getRowReorderClassName(row))}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={mergeClassNames(
+                'flex items-start gap-2',
+                onRowClick ? 'cursor-pointer table-row-hover' : undefined,
+                getRowReorderClassName(row)
+              )}
             >
               {rowSelection && (
                 <div className="shrink-0 pt-2 pl-2">{renderSelectionCell(row)}</div>
