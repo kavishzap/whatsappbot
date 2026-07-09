@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   fetchBotOrders,
@@ -79,7 +79,7 @@ interface BotOrdersPageProps {
   company: WhatsAppCompany
 }
 
-export function BotOrdersPage({ company }: BotOrdersPageProps) {
+function BotOrdersPageContent({ company }: BotOrdersPageProps) {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
@@ -703,6 +703,22 @@ export function BotOrdersPage({ company }: BotOrdersPageProps) {
         }
       />
     </div>
+  )
+}
+
+function BotOrdersPageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[12rem] text-sm text-ink-500">
+      Loading orders…
+    </div>
+  )
+}
+
+export function BotOrdersPage({ company }: BotOrdersPageProps) {
+  return (
+    <Suspense fallback={<BotOrdersPageFallback />}>
+      <BotOrdersPageContent company={company} />
+    </Suspense>
   )
 }
 
