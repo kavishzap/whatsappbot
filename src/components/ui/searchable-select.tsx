@@ -152,7 +152,7 @@ export function SearchableSelect({
     setOpen(false)
   }
 
-  const useCustomQuery = () => {
+  const applyCustomQuery = () => {
     const next = query.trim()
     if (!allowCustom || !next) return
     onChange('')
@@ -186,7 +186,7 @@ export function SearchableSelect({
               if (event.key === 'Enter') {
                 event.preventDefault()
                 if (filtered[0]) pickOption(filtered[0])
-                else useCustomQuery()
+                else applyCustomQuery()
               }
               if (event.key === 'Escape') setOpen(false)
             }}
@@ -226,7 +226,7 @@ export function SearchableSelect({
           <div className="border-t border-ink-100 p-2 shrink-0">
             <button
               type="button"
-              onClick={useCustomQuery}
+              onClick={applyCustomQuery}
               className="w-full text-left px-2 py-1.5 text-sm text-brand-700 hover:bg-brand-50 rounded-lg"
             >
               Use “{query.trim()}” as custom product
