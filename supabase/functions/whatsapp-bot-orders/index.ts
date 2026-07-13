@@ -334,6 +334,11 @@ Deno.serve(async (req) => {
           orderInsert.notes = body.notes.trim()
         }
 
+        if (body.source !== undefined) {
+          orderInsert.source =
+            typeof body.source === 'string' && body.source.trim() ? body.source.trim() : null
+        }
+
         const { data: order, error: orderError } = await supabase
           .from('whatsapp_bot_orders')
           .insert(orderInsert)

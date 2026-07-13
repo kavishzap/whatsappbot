@@ -2,6 +2,7 @@ import {
   displayOrderAddress,
   displayOrderCity,
   displayOrderCustomerName,
+  displayOrderSource,
   displayOrderZoneName,
   formatOrderDate,
   formatOrderItemLabel,
@@ -34,6 +35,7 @@ export interface OrderExportLineRow {
   note: string
   status: string
   orderRef: string
+  source: string
 }
 
 export interface ItemPivotRow {
@@ -65,6 +67,7 @@ export function expandOrdersForExport(orders: WhatsAppBotOrder[]): OrderExportLi
     note: order.notes?.trim() || '—',
     status: ORDER_STATUS_LABELS[order.status],
     orderRef: order.order_ref,
+    source: displayOrderSource(order),
   }))
 }
 
@@ -82,6 +85,7 @@ export const ORDER_EXPORT_COLUMNS: CsvColumn<OrderExportLineRow>[] = [
   { header: 'Note', value: row => row.note },
   { header: 'Status', value: row => row.status },
   { header: 'Order Ref', value: row => row.orderRef },
+  { header: 'Source', value: row => row.source },
 ]
 
 export function buildItemPivot(orders: WhatsAppBotOrder[]): ItemPivotRow[] {

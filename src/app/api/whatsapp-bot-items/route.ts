@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAuthClient } from '@/lib/supabase/server'
+import { getServiceClient } from '@/lib/supabase/admin'
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { isAllowedRole } from '@/lib/auth'
 import { isWhatsAppCompany } from '@/lib/whatsapp-company'
+
+function visibilityUpdates(body: Record<string, unknown>): Record<string, boolean> | null {
+  const updates: Record<string, boolean> = {}
+  if ('is_website' in body) updates.is_website = body.is_website === true
+  if ('is_whatsapp' in body) updates.is_whatsapp = body.is_whatsapp === true
+  return Object.keys(updates).length > 0 ? updates : null
+}
+
+async function persistVisibilityFlags(id: string, body: Record<string, unknown>): Promise<void> {
+  const updates = visibilityUpdates(body)
+  if (!updates) return
+
+  const supabase = getServiceClient()
+  const { error } = await supabase.from('whatsapp_bot_items').update(updates).eq('id', id)
+  if (error) throw error
+}
+
+function mergeVisibilityIntoResponse<T extends Record<string, unknown>>(
+  data: T,
+  body: Record<string, unknown>
+): T {
+  const updates = visibilityUpdates(body)
+  return updates ? { ...data, ...updates } : data
+}
 
 async function requireAuth() {
   const supabase = createAuthClient()
@@ -64,7 +89,15 @@ export async function POST(request: NextRequest) {
       query: { company },
       body,
     })
-    return NextResponse.json({ success: true, data: result.data })
+    const created = result.data as { id?: string } | undefined
+    if (created?.id) {
+      await persistVisibilityFlags(created.id, body)
+    }
+    const data =
+      created?.id && result.data && typeof result.data === 'object'
+        ? mergeVisibilityIntoResponse(result.data as Record<string, unknown>, body)
+        : result.data
+    return NextResponse.json({ success: true, data })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })
@@ -92,7 +125,12 @@ export async function PUT(request: NextRequest) {
       query: { id, company },
       body,
     })
-    return NextResponse.json({ success: true, data: result.data })
+    await persistVisibilityFlags(id, body)
+    const data =
+      result.data && typeof result.data === 'object'
+        ? mergeVisibilityIntoResponse(result.data as Record<string, unknown>, body)
+        : result.data
+    return NextResponse.json({ success: true, data })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })

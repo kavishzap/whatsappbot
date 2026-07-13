@@ -58,6 +58,8 @@ function createEmptyRow(): ProductDetailRow {
     imageBase64: null,
     imagePreview: null,
     description: '',
+    isWebsite: false,
+    isWhatsapp: true,
     colors: [],
     isNew: true,
   }
@@ -79,6 +81,8 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
     imageBase64,
     imagePreview: toImageSrc(imageBase64),
     description: item.description ?? '',
+    isWebsite: item.is_website === true,
+    isWhatsapp: item.is_whatsapp !== false,
     colors: colorsFromApi(item.colors ?? []),
   }
 }
@@ -171,13 +175,14 @@ export default function WhatsAppProductPage() {
   const openAddModal = () => setModalRow(createEmptyRow())
 
   const openEditModal = async (row: BotRow) => {
-    setModalRow(rowToModal(row))
-    if (!row.hasImage || row.imageBase64) return
+    setModalRow({ ...rowToModal(row), detailsLoading: true })
     try {
       const item = await fetchBotItem('sodamax', row.id)
-      setModalRow(rowToModal(itemToRow(item)))
-      setRows(prev => prev.map(r => (r.id === item.id ? itemToRow(item) : r)))
+      const fullRow = itemToRow(item)
+      setModalRow(rowToModal(fullRow))
+      setRows(prev => prev.map(r => (r.id === item.id ? fullRow : r)))
     } catch (err) {
+      setModalRow(null)
       toast.error(getBotItemErrorMessage(err))
     }
   }
@@ -206,6 +211,8 @@ export default function WhatsAppProductPage() {
       price: parseFloat(modalRow.price),
       image_base64: modalRow.imageBase64,
       description: modalRow.description.trim(),
+      is_website: modalRow.isWebsite,
+      is_whatsapp: modalRow.isWhatsapp,
       colors: colorsToApi(modalRow.colors),
     }
 

@@ -34,6 +34,7 @@ export interface WhatsAppBotOrder {
   total: number
   status: OrderStatus
   notes: string | null
+  source: string | null
   items: WhatsAppBotOrderItem[]
   created_at: string
   updated_at?: string
@@ -120,6 +121,7 @@ function normalizeOrder(raw: WhatsAppBotOrder): WhatsAppBotOrder {
     mapped_zone_name: mappedCity?.zone_name || null,
     status: normalizeOrderStatus(raw.status),
     notes: raw.notes?.trim() || null,
+    source: raw.source?.trim() || null,
     items: [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
   }
 }
@@ -182,6 +184,10 @@ export function resolveEditAddress(order: WhatsAppBotOrder): string {
 
 export function displayOrderCity(order: WhatsAppBotOrder): string {
   return order.mapped_city_name?.trim() || '—'
+}
+
+export function displayOrderSource(order: WhatsAppBotOrder): string {
+  return order.source?.trim() || '—'
 }
 
 export function formatOrderProductsList(order: WhatsAppBotOrder): string {

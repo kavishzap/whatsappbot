@@ -34,6 +34,8 @@ export interface BotItem {
   description: string | null
   /** Present on list responses — full item must be fetched for image data */
   has_image?: boolean
+  is_website?: boolean
+  is_whatsapp?: boolean
   colors?: { id?: string; color_name: string; color_hex: string | null; sort_order?: number }[]
 }
 

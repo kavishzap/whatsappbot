@@ -11,6 +11,7 @@ import {
   displayOrderCity,
   displayOrderCityRegion,
   displayOrderZoneName,
+  displayOrderSource,
   formatOrderItemLabel,
   formatOrderProductsList,
   formatOrderTotalQty,
@@ -56,6 +57,7 @@ function matchesOrderSearch(order: WhatsAppBotOrder, query: string): boolean {
     (order.customer_name ?? '').toLowerCase().includes(q) ||
     order.customer_phone_number.includes(q) ||
     order.city.toLowerCase().includes(q) ||
+    (order.source ?? '').toLowerCase().includes(q) ||
     (order.notes ?? '').toLowerCase().includes(q) ||
     order.items.some(item =>
       item.product_name.toLowerCase().includes(q) ||
@@ -452,6 +454,22 @@ function BotOrdersPageContent({ company }: BotOrdersPageProps) {
             {order.order_ref}
           </span>
         ),
+      },
+      {
+        key: 'source',
+        header: 'Source',
+        width: '6%',
+        truncateCell: true,
+        hideBelow: 'md',
+        sortValue: order => displayOrderSource(order),
+        render: order => {
+          const source = displayOrderSource(order)
+          return (
+            <span className="text-ink-600 truncate block capitalize" title={source === '—' ? undefined : source}>
+              {source}
+            </span>
+          )
+        },
       },
       {
         key: 'actions',

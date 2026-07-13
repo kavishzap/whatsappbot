@@ -19,6 +19,8 @@ export interface WhatsAppBotItemSummary {
   description: string
   sort_order: number
   has_image: boolean
+  is_website: boolean
+  is_whatsapp: boolean
   colors?: BotItemColor[]
   created_at: string
   updated_at: string
@@ -39,6 +41,8 @@ export interface BotItemPayload {
   image_base64: string | null
   description?: string
   sort_order?: number
+  is_website?: boolean
+  is_whatsapp?: boolean
   colors?: BotItemColor[]
 }
 

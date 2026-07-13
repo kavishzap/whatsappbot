@@ -22,8 +22,11 @@ export interface ProductDetailRow {
   imageBase64: string | null
   imagePreview: string | null
   description: string
+  isWebsite: boolean
+  isWhatsapp: boolean
   colors: ProductColorRow[]
   isNew: boolean
+  detailsLoading?: boolean
 }
 
 interface ProductDetailModalProps {
@@ -271,6 +274,39 @@ export function ProductDetailModal({
             />
           </DetailField>
 
+          <div>
+            <p className="text-[11px] font-semibold text-ink-400 uppercase tracking-wider mb-2">
+              Visibility
+            </p>
+            {row.detailsLoading ? (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="h-[52px] rounded-xl bg-ink-50 animate-pulse flex-1" />
+                <div className="h-[52px] rounded-xl bg-ink-50 animate-pulse flex-1" />
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-xl border border-ink-100 bg-ink-50/50 px-4 py-3 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={row.isWhatsapp}
+                    onChange={e => onUpdate(row.id, { isWhatsapp: e.target.checked })}
+                    className="w-4 h-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span className="text-sm text-ink-700">Show on WhatsApp</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-xl border border-ink-100 bg-ink-50/50 px-4 py-3 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={row.isWebsite}
+                    onChange={e => onUpdate(row.id, { isWebsite: e.target.checked })}
+                    className="w-4 h-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span className="text-sm text-ink-700">Show on website</span>
+                </label>
+              </div>
+            )}
+          </div>
+
           {showColors && (
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -344,7 +380,12 @@ export function ProductDetailModal({
             <button type="button" onClick={onClose} disabled={saving} className="flex-1 btn-secondary">
               Cancel
             </button>
-            <button type="button" onClick={onSave} disabled={saving} className="flex-1 btn-primary">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving || row.detailsLoading}
+              className="flex-1 btn-primary"
+            >
               {saving ? (
                 <>
                   <Spinner />
