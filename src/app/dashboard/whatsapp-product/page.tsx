@@ -40,6 +40,8 @@ interface BotRow {
   imageBase64: string | null
   imagePreview: string | null
   description: string
+  isWebsite: boolean
+  isWhatsapp: boolean
   colors: ProductColorRow[]
 }
 
