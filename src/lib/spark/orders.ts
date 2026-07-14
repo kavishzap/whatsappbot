@@ -27,7 +27,10 @@ export interface OrderPayload {
   items: OrderLineItem[]
   status?: 'draft' | 'complete'
   company?: WhatsAppCompany
+  source?: string
 }
+
+export const WHATSAPP_ORDER_SOURCE = 'whatsapp'
 
 interface CreatedOrder {
   id: string
@@ -94,7 +97,7 @@ export async function createDraftOrder(
         ...payload,
         company: resolveCompany(payload.company),
         address: payload.address?.trim() || '—',
-        source: 'whatsapp',
+        source: WHATSAPP_ORDER_SOURCE,
         ...(customerName ? { customer_name: customerName } : {}),
         status: 'draft',
       },
@@ -185,6 +188,7 @@ export async function completeDraftOrder(
         status: 'complete',
         customer_name: payload.customer_name.trim(),
         company: resolveCompany(company),
+        source: WHATSAPP_ORDER_SOURCE,
       },
     })
 
@@ -205,7 +209,12 @@ export async function saveOrder(
   try {
     const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
       method: 'POST',
-      body: { ...payload, company: resolveCompany(payload.company), source: 'whatsapp', status: 'complete' },
+      body: {
+        ...payload,
+        company: resolveCompany(payload.company),
+        source: WHATSAPP_ORDER_SOURCE,
+        status: 'complete',
+      },
     })
 
     return { success: true, orderRef: result.data?.order_ref }

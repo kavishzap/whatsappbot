@@ -324,6 +324,8 @@ Deno.serve(async (req) => {
           address,
           total,
           status,
+          source:
+            typeof body.source === 'string' && body.source.trim() ? body.source.trim() : null,
         }
 
         if (typeof body.city_id === 'string' && body.city_id.trim()) {
@@ -332,11 +334,6 @@ Deno.serve(async (req) => {
 
         if (typeof body.notes === 'string' && body.notes.trim()) {
           orderInsert.notes = body.notes.trim()
-        }
-
-        if (body.source !== undefined) {
-          orderInsert.source =
-            typeof body.source === 'string' && body.source.trim() ? body.source.trim() : null
         }
 
         const { data: order, error: orderError } = await supabase
@@ -402,6 +399,7 @@ Deno.serve(async (req) => {
         total?: number
         company?: string
         notes?: string | null
+        source?: string | null
         items?: unknown
       }
 
@@ -471,7 +469,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Invalid bulk_action' }, 400)
       }
 
-      const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, notes, items: rawItems } =
+      const { id, status, customer_name, address, city, city_id, total, company: bodyCompany, notes, source, items: rawItems } =
         body
 
       if (!id) {
@@ -533,6 +531,10 @@ Deno.serve(async (req) => {
       if (notes !== undefined) {
         updates.notes =
           typeof notes === 'string' && notes.trim() ? notes.trim() : null
+      }
+      if (source !== undefined) {
+        updates.source =
+          typeof source === 'string' && source.trim() ? source.trim() : null
       }
 
       if (hasItemUpdates) {
