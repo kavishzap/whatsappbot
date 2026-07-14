@@ -2,7 +2,7 @@ import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import type { BotItem } from '@/lib/spark/types'
 import type { SodamaxProduct } from './types'
 
-const CACHE_TTL_MS = 5 * 60_000
+const CACHE_TTL_MS = 60_000
 let itemsCache: { data: SodamaxProduct[]; at: number } | null = null
 let newMachineIdCache: string | null | undefined
 
@@ -41,11 +41,11 @@ async function fetchAllProducts(): Promise<SodamaxProduct[]> {
 
   try {
     const result = await invokeEdgeFunction<BotItem[]>('whatsapp-bot-items', {
-      query: { company: 'sodamax' },
+      query: { company: 'sodamax', for_whatsapp: '1' },
     })
 
     const items = (result.data ?? [])
-      .filter(item => item.is_whatsapp !== false)
+      .filter(item => item.is_whatsapp === true)
       .map(mapProduct)
     itemsCache = { data: items, at: Date.now() }
     newMachineIdCache = undefined

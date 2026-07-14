@@ -113,10 +113,18 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Missing or invalid company (spark|sodamax)' }, 400)
       }
 
-      const { data, error } = await supabase
+      const forWhatsapp = url.searchParams.get('for_whatsapp') === '1'
+
+      let listQuery = supabase
         .from('whatsapp_bot_items')
         .select(`${LIST_COLUMNS}, image_base64, colors:whatsapp_bot_item_colors(${COLOR_COLUMNS})`)
         .eq('company', company)
+
+      if (forWhatsapp) {
+        listQuery = listQuery.eq('is_whatsapp', true)
+      }
+
+      const { data, error } = await listQuery
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true })
       if (error) throw error

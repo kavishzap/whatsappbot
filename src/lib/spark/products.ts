@@ -3,15 +3,23 @@ import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import type { BotItem, WhatsAppReferral } from './types'
 
 const CACHE_TTL_MS = 5 * 60_000
+const WHATSAPP_CATALOG_CACHE_TTL_MS = 60_000
 
-let itemsCache: { data: BotItem[]; at: number; company: WhatsAppCompany } | null = null
+type ItemsCache = {
+  data: BotItem[]
+  at: number
+  company: WhatsAppCompany
+  whatsappOnly: boolean
+}
 
-function isCacheValid(company: WhatsAppCompany): boolean {
-  return (
-    itemsCache !== null &&
-    itemsCache.company === company &&
-    Date.now() - itemsCache.at < CACHE_TTL_MS
-  )
+let itemsCache: ItemsCache | null = null
+
+function isCacheValid(company: WhatsAppCompany, whatsappOnly: boolean): boolean {
+  if (itemsCache === null) return false
+  if (itemsCache.company !== company || itemsCache.whatsappOnly !== whatsappOnly) return false
+
+  const ttl = whatsappOnly ? WHATSAPP_CATALOG_CACHE_TTL_MS : CACHE_TTL_MS
+  return Date.now() - itemsCache.at < ttl
 }
 
 function mergeIntoCache(item: BotItem, company: WhatsAppCompany): void {
@@ -65,20 +73,41 @@ function extractUrlFromText(text: string): string | null {
   return match ? match[0].replace(/[.,!?;:]+$/, '') : null
 }
 
-async function fetchAllItems(company: WhatsAppCompany = 'spark'): Promise<BotItem[]> {
-  if (isCacheValid(company) && itemsCache) return itemsCache.data
+async function fetchItems(
+  company: WhatsAppCompany = 'spark',
+  options?: { whatsappOnly?: boolean }
+): Promise<BotItem[]> {
+  const whatsappOnly = options?.whatsappOnly ?? false
+
+  if (isCacheValid(company, whatsappOnly) && itemsCache) {
+    return itemsCache.data
+  }
 
   try {
     const result = await invokeEdgeFunction<BotItem[]>('whatsapp-bot-items', {
-      query: { company },
+      query: {
+        company,
+        ...(whatsappOnly ? { for_whatsapp: '1' } : {}),
+      },
     })
-    const items = (result.data ?? []).filter(item => item.is_whatsapp !== false)
-    itemsCache = { data: items, at: Date.now(), company }
+
+    const items = whatsappOnly
+      ? (result.data ?? []).filter(item => item.is_whatsapp === true)
+      : (result.data ?? [])
+
+    itemsCache = { data: items, at: Date.now(), company, whatsappOnly }
     return items
   } catch (err) {
-    console.error('listAllItems error:', err)
-    return itemsCache?.company === company ? itemsCache.data : []
+    console.error('fetchItems error:', err)
+    if (itemsCache?.company === company && itemsCache.whatsappOnly === whatsappOnly) {
+      return itemsCache.data
+    }
+    return []
   }
+}
+
+async function fetchAllItems(company: WhatsAppCompany = 'spark'): Promise<BotItem[]> {
+  return fetchItems(company, { whatsappOnly: false })
 }
 
 async function fetchFullItemById(
@@ -167,8 +196,8 @@ export async function findItemById(
 ): Promise<BotItem | null> {
   const company = options?.company ?? 'spark'
 
-  if (isCacheValid(company)) {
-    const hit = itemsCache!.data.find(item => item.id === id)
+  if (isCacheValid(company, false) && itemsCache) {
+    const hit = itemsCache.data.find(item => item.id === id)
     if (!hit) return fetchFullItemById(id, company)
 
     if (options?.requireImage) {
@@ -192,8 +221,9 @@ export async function resolveItemWithImage(item: BotItem): Promise<BotItem> {
   return full ?? item
 }
 
+/** Products visible in the WhatsApp bot catalog (is_whatsapp = true). */
 export async function listAllItems(): Promise<BotItem[]> {
-  return fetchAllItems()
+  return fetchItems('spark', { whatsappOnly: true })
 }
 
 export function getItemLabel(item: BotItem, index?: number): string {
