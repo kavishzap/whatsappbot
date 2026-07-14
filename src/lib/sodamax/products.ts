@@ -44,7 +44,9 @@ async function fetchAllProducts(): Promise<SodamaxProduct[]> {
       query: { company: 'sodamax' },
     })
 
-    const items = (result.data ?? []).map(mapProduct)
+    const items = (result.data ?? [])
+      .filter(item => item.is_whatsapp !== false)
+      .map(mapProduct)
     itemsCache = { data: items, at: Date.now() }
     newMachineIdCache = undefined
     return items

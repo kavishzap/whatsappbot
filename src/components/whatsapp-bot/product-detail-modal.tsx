@@ -264,16 +264,6 @@ export function ProductDetailModal({
             </div>
           </details>
 
-          <DetailField label="Description">
-            <textarea
-              value={row.description}
-              onChange={e => onUpdate(row.id, { description: e.target.value })}
-              placeholder="Describe the product for customers… (optional)"
-              rows={6}
-              className="input-field resize-y min-h-[120px] h-auto py-2.5"
-            />
-          </DetailField>
-
           <div>
             <p className="text-[11px] font-semibold text-ink-400 uppercase tracking-wider mb-2">
               Visibility
@@ -306,6 +296,16 @@ export function ProductDetailModal({
               </div>
             )}
           </div>
+
+          <DetailField label="Description">
+            <textarea
+              value={row.description}
+              onChange={e => onUpdate(row.id, { description: e.target.value })}
+              placeholder="Describe the product for customers… (optional)"
+              rows={6}
+              className="input-field resize-y min-h-[120px] h-auto py-2.5"
+            />
+          </DetailField>
 
           {showColors && (
             <div>

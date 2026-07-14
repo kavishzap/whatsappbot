@@ -94,6 +94,7 @@ export async function createDraftOrder(
         ...payload,
         company: resolveCompany(payload.company),
         address: payload.address?.trim() || '—',
+        source: 'whatsapp',
         ...(customerName ? { customer_name: customerName } : {}),
         status: 'draft',
       },
@@ -204,7 +205,7 @@ export async function saveOrder(
   try {
     const result = await invokeEdgeFunction<CreatedOrder>('whatsapp-bot-orders', {
       method: 'POST',
-      body: { ...payload, company: resolveCompany(payload.company), status: 'complete' },
+      body: { ...payload, company: resolveCompany(payload.company), source: 'whatsapp', status: 'complete' },
     })
 
     return { success: true, orderRef: result.data?.order_ref }

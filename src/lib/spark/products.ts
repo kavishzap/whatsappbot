@@ -72,7 +72,7 @@ async function fetchAllItems(company: WhatsAppCompany = 'spark'): Promise<BotIte
     const result = await invokeEdgeFunction<BotItem[]>('whatsapp-bot-items', {
       query: { company },
     })
-    const items = result.data ?? []
+    const items = (result.data ?? []).filter(item => item.is_whatsapp !== false)
     itemsCache = { data: items, at: Date.now(), company }
     return items
   } catch (err) {
