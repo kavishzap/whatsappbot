@@ -208,7 +208,7 @@ async function sendProductContent(phone: string, item: BotItem): Promise<void> {
   const displayItem = await resolveItemWithImage(item)
   const description = displayItem.description?.trim() ?? ''
   const productName = displayItem.product_name?.trim()
-  let imageSent = false
+  const caption = description || (productName ? `*${productName}*` : undefined)
 
   if (displayItem.image_base64) {
     try {
@@ -218,8 +218,8 @@ async function sendProductContent(phone: string, item: BotItem): Promise<void> {
         mediaId = await uploadWhatsAppMedia(buffer, mimeType)
         setCachedMediaId(displayItem.id, mediaId)
       }
-      await sendWhatsAppImage(phone, mediaId)
-      imageSent = true
+      await sendWhatsAppImage(phone, mediaId, caption)
+      return
     } catch (err) {
       if (isWhatsAppAuthError(err)) throw err
       console.error('Failed to send product image:', err)
@@ -230,7 +230,7 @@ async function sendProductContent(phone: string, item: BotItem): Promise<void> {
     await sendWhatsAppText(phone, description)
   } else if (productName) {
     await sendWhatsAppText(phone, `*${productName}*`)
-  } else if (!imageSent) {
+  } else {
     await sendWhatsAppText(phone, 'Here is the product you requested.')
   }
 }

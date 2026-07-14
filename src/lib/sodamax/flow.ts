@@ -510,7 +510,12 @@ async function sendProductContent(
   colorName: string | null
 ): Promise<void> {
   const displayProduct = await resolveSodamaxProductWithImage(product)
-  let imageSent = false
+  const description = displayProduct.description?.trim()
+  const summaryLines = [`*${getSodamaxProductLabel(displayProduct)}*`]
+  if (colorName) summaryLines.push(`Color: ${colorName}`)
+  if (displayProduct.price > 0) summaryLines.push(formatTotal(displayProduct.price))
+  const summaryText = summaryLines.join('\n')
+  const caption = description || summaryText
 
   if (displayProduct.image_base64) {
     try {
@@ -520,25 +525,19 @@ async function sendProductContent(
         mediaId = await uploadWhatsAppMedia(buffer, mimeType)
         setCachedMediaId(displayProduct.id, mediaId)
       }
-      await sendWhatsAppImage(phone, mediaId)
-      imageSent = true
+      await sendWhatsAppImage(phone, mediaId, caption)
+      return
     } catch (err) {
       if (isWhatsAppAuthError(err)) throw err
       console.error('SodaMax product image failed:', err)
     }
   }
 
-  const description = displayProduct.description?.trim()
   if (description) {
     await sendWhatsAppText(phone, description)
+  } else if (colorName || displayProduct.price > 0 || displayProduct.name.trim()) {
+    await sendWhatsAppText(phone, summaryText)
   } else {
-    const lines = [`*${getSodamaxProductLabel(displayProduct)}*`]
-    if (colorName) lines.push(`Color: ${colorName}`)
-    if (displayProduct.price > 0) lines.push(formatTotal(displayProduct.price))
-    await sendWhatsAppText(phone, lines.join('\n'))
-  }
-
-  if (!imageSent && !description && !colorName && displayProduct.price <= 0) {
     await sendWhatsAppText(phone, 'Here is the product you requested.')
   }
 }
