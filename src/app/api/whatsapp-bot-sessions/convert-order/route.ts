@@ -127,6 +127,7 @@ export async function POST(request: Request) {
           city_id: cityId,
           notes,
           total,
+          source: 'whatsapp',
           items: normalizedItems,
         },
       })

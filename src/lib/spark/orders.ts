@@ -137,6 +137,7 @@ export async function patchDraftOrder(
         id: orderId,
         company: resolveCompany(payload.company),
         ...payload,
+        source: WHATSAPP_ORDER_SOURCE,
       },
     })
 

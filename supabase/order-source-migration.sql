@@ -1,4 +1,5 @@
 -- Order source (e.g. whatsapp, website, dashboard).
+-- Safe to run even if the column/index already exist.
 
 ALTER TABLE public.whatsapp_bot_orders
   ADD COLUMN IF NOT EXISTS source text;

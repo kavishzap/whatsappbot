@@ -325,7 +325,9 @@ Deno.serve(async (req) => {
           total,
           status,
           source:
-            typeof body.source === 'string' && body.source.trim() ? body.source.trim() : null,
+            typeof body.source === 'string' && body.source.trim()
+              ? body.source.trim()
+              : 'whatsapp',
         }
 
         if (typeof body.city_id === 'string' && body.city_id.trim()) {
