@@ -628,6 +628,40 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: true, data: claimed })
       }
 
+      if (body.action === 'claim_inbound') {
+        const messageId =
+          typeof body.message_id === 'string' ? body.message_id.trim() : ''
+        const inboundPhone = typeof body.phone === 'string' ? body.phone.trim() : ''
+        const inboundCompany = parseCompany(
+          typeof body.company === 'string' ? body.company : null
+        )
+
+        if (!messageId || !inboundPhone) {
+          return jsonResponse(
+            { success: false, error: 'Missing message_id or phone' },
+            400
+          )
+        }
+
+        const { error: insertError } = await supabase
+          .from('whatsapp_inbound_dedup')
+          .insert({
+            message_id: messageId,
+            phone: inboundPhone,
+            company: inboundCompany,
+          })
+
+        if (insertError) {
+          const code = (insertError as { code?: string }).code
+          if (code === '23505') {
+            return jsonResponse({ success: true, data: { claimed: false } })
+          }
+          throw insertError
+        }
+
+        return jsonResponse({ success: true, data: { claimed: true } })
+      }
+
       return jsonResponse({ success: false, error: 'Unknown action' }, 400)
     }
 

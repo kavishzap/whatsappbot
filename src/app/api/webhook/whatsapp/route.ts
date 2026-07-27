@@ -14,7 +14,13 @@ import { sendProcessErrorWithSupport } from '@/lib/spark/process-error'
 import { isWhatsAppAuthError } from '@/lib/whatsapp'
 import { logWhatsAppInbound } from '@/lib/whatsapp-log'
 import { resolveWhatsAppLine, runWithWhatsAppLine } from '@/lib/whatsapp-line'
+import {
+  beginInboundProcessing,
+  claimInboundWhatsAppMessage,
+  endInboundProcessing,
+} from '@/lib/whatsapp-inbound-dedup'
 import type { IncomingWhatsAppMessage } from '@/lib/spark/types'
+import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 
 function getVerifyToken() {
   return (
@@ -92,6 +98,27 @@ export async function POST(request: Request) {
     return new Response('OK', { status: 200 })
   }
 
+  const inboundMessageId = message.id?.trim()
+  const dedupCompany: WhatsAppCompany = line === 'sodamax' ? 'sodamax' : 'spark'
+
+  if (inboundMessageId) {
+    if (!beginInboundProcessing(inboundMessageId)) {
+      console.log(`Skipping duplicate WhatsApp inbound (in-flight): ${inboundMessageId}`)
+      return new Response('OK', { status: 200 })
+    }
+
+    const claimed = await claimInboundWhatsAppMessage(
+      dedupCompany,
+      inboundMessageId,
+      message.from
+    )
+    if (!claimed) {
+      endInboundProcessing(inboundMessageId)
+      console.log(`Skipping duplicate WhatsApp inbound: ${inboundMessageId}`)
+      return new Response('OK', { status: 200 })
+    }
+  }
+
   if (message.referral?.source_id || message.referral?.source_url) {
     void recordAdReferral(line, message.referral, message.from).catch(err =>
       console.error('recordAdReferral failed:', err)
@@ -103,28 +130,32 @@ export async function POST(request: Request) {
       ? () => handleSodamaxMessage(message)
       : () => handleChatbotMessage(message)
 
-  // Must await on serverless (Netlify): returning 200 before the handler finishes lets
-  // the runtime shut down and drop in-flight WhatsApp replies.
-  await runWithWhatsAppLine(line, async () => {
-    try {
-      await handler()
-    } catch (error) {
-      if (isWhatsAppAuthError(error)) {
-        console.error('WhatsApp auth error:', (error as Error).message)
-        return
+  try {
+    await runWithWhatsAppLine(line, async () => {
+      try {
+        await handler()
+      } catch (error) {
+        if (isWhatsAppAuthError(error)) {
+          console.error('WhatsApp auth error:', (error as Error).message)
+          return
+        }
+
+        console.error('Webhook handler error:', error)
+
+        const isSodamax = line === 'sodamax'
+        await sendProcessErrorWithSupport(message.from, {
+          message: isSodamax ? SODAMAX_PROCESS_ERROR_MESSAGE : PROCESS_ERROR_MESSAGE,
+          ctaLabel: OTHER_QUERY_CTA_LABEL,
+          supportUrl: isSodamax ? SODAMAX_SUPPORT_WHATSAPP_URL : SUPPORT_WHATSAPP_URL,
+          logLabel: isSodamax ? 'SodaMax webhook' : 'Spark webhook',
+        })
       }
-
-      console.error('Webhook handler error:', error)
-
-      const isSodamax = line === 'sodamax'
-      await sendProcessErrorWithSupport(message.from, {
-        message: isSodamax ? SODAMAX_PROCESS_ERROR_MESSAGE : PROCESS_ERROR_MESSAGE,
-        ctaLabel: OTHER_QUERY_CTA_LABEL,
-        supportUrl: isSodamax ? SODAMAX_SUPPORT_WHATSAPP_URL : SUPPORT_WHATSAPP_URL,
-        logLabel: isSodamax ? 'SodaMax webhook' : 'Spark webhook',
-      })
+    })
+  } finally {
+    if (inboundMessageId) {
+      endInboundProcessing(inboundMessageId)
     }
-  })
+  }
 
   return new Response('OK', { status: 200 })
 }

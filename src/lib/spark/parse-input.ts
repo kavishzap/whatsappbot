@@ -10,6 +10,12 @@ function normalize(text: string): string {
 }
 
 export function extractMessageInput(message: IncomingWhatsAppMessage): MessageInput {
+  if (message.type === 'button' && message.button) {
+    const payload = message.button.payload?.trim()
+    const text = message.button.text?.trim()
+    return { type: 'button', value: payload || text || '' }
+  }
+
   if (message.type === 'interactive' && message.interactive) {
     if (message.interactive.type === 'button_reply' && message.interactive.button_reply) {
       return { type: 'button', value: message.interactive.button_reply.id }

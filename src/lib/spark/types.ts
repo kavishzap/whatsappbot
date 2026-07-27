@@ -76,11 +76,17 @@ export interface WhatsAppReferral {
 }
 
 export interface IncomingWhatsAppMessage {
+  /** WhatsApp message id (wamid) — used for webhook deduplication. */
+  id?: string
   from: string
   /** WhatsApp display name from webhook `contacts[].profile.name`. */
   profile_name?: string
   type: string
   text?: { body?: string }
+  /** Template quick-reply button (marketing messages). */
+  button?: { payload?: string; text?: string }
+  /** Set when the customer taps a button on a message you sent (e.g. marketing template). */
+  context?: { from?: string; id?: string }
   referral?: WhatsAppReferral
   interactive?: {
     type: string

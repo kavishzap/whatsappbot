@@ -43,6 +43,7 @@ import {
 import { sendProductList } from './product-list'
 import { sendQuantityList } from './quantity-list'
 import { sendDeliveryAddressPrompt } from './regions'
+import { resolveMarketingProductItemId } from './marketing-product-map'
 import {
   MAIN_MENU_BUTTONS,
   WELCOME_MENU_MESSAGE,
@@ -116,7 +117,13 @@ export async function handleChatbotMessage(message: IncomingWhatsAppMessage): Pr
   const hasReferral = Boolean(message.referral?.source_id || message.referral?.source_url)
 
   if (!input.value && input.type === 'text' && !hasReferral) {
-    return
+    const marketingOnly =
+      message.type === 'button' ||
+      (message.type === 'interactive' &&
+        (message.interactive?.button_reply || message.interactive?.list_reply))
+    if (!marketingOnly && !resolveMarketingProductItemId(message)) {
+      return
+    }
   }
 
   let session: WhatsAppSession
@@ -133,9 +140,7 @@ export async function handleChatbotMessage(message: IncomingWhatsAppMessage): Pr
     if (message.referral) {
       const item = await findItemByReferral(message.referral, 'spark')
       if (item) {
-        if (session.state !== 'idle') {
-          void resetSession(phone).catch(err => console.error('resetSession failed:', err))
-        }
+        await prepareFreshOrderSession(phone, session)
         await sendProductAndStartOrder(phone, item)
         return
       }
@@ -144,12 +149,26 @@ export async function handleChatbotMessage(message: IncomingWhatsAppMessage): Pr
     if (input.type === 'text' && input.value) {
       const item = await findItemByLink(input.value, 'spark')
       if (item) {
-        if (session.state !== 'idle') {
-          void resetSession(phone).catch(err => console.error('resetSession failed:', err))
-        }
+        await prepareFreshOrderSession(phone, session)
         await sendProductAndStartOrder(phone, item)
         return
       }
+    }
+
+    const marketingItemId = resolveMarketingProductItemId(message)
+    if (marketingItemId) {
+      const item = await findItemById(marketingItemId, { company: 'spark' })
+      if (item) {
+        await prepareFreshOrderSession(phone, session)
+        await startMarketingOrderAtQuantity(phone, item)
+        return
+      }
+      console.error('Marketing mapped item not found:', marketingItemId)
+      await sendMainMenu(
+        phone,
+        'Sorry, that offer is unavailable right now.\n\nHow can we help you today?'
+      )
+      return
     }
 
     if (session.state !== 'idle') {
@@ -187,6 +206,18 @@ export async function handleChatbotMessage(message: IncomingWhatsAppMessage): Pr
   }
 }
 
+async function prepareFreshOrderSession(phone: string, session: WhatsAppSession): Promise<void> {
+  if (
+    session.state === 'idle' &&
+    !session.draft_order_id &&
+    !session.selected_item_id &&
+    (session.cart_items?.length ?? 0) === 0
+  ) {
+    return
+  }
+  await resetSession(phone)
+}
+
 async function sendProductAndStartOrder(phone: string, item: BotItem): Promise<void> {
   await sendProductContent(phone, item)
   await sendOrderDecisionButtons(phone)
@@ -202,6 +233,23 @@ async function sendProductAndStartOrder(phone: string, item: BotItem): Promise<v
     draft_order_id: null,
     cart_items: [],
   }).catch(err => console.error('Session update failed after sending product:', err))
+}
+
+/** Marketing / template: customer already saw the product — go straight to quantity. */
+async function startMarketingOrderAtQuantity(phone: string, item: BotItem): Promise<void> {
+  await updateSession(phone, {
+    state: 'awaiting_quantity',
+    selected_item_id: item.id,
+    quantity: null,
+    region: null,
+    city: null,
+    address: null,
+    customer_name: null,
+    total: null,
+    draft_order_id: null,
+    cart_items: [],
+  })
+  await sendQuantityList(phone)
 }
 
 async function sendProductContent(phone: string, item: BotItem): Promise<void> {
@@ -288,14 +336,16 @@ async function handleActiveSession(
       break
     default:
       await resetSession(phone)
+      await sendMainMenu(phone)
+      break
   }
 }
 
-async function sendMainMenu(phone: string): Promise<void> {
+async function sendMainMenu(phone: string, body?: string): Promise<void> {
   void listAllItems().catch(() => {})
   await sendWhatsAppButtons(
     phone,
-    WELCOME_MENU_MESSAGE,
+    body ?? WELCOME_MENU_MESSAGE,
     MAIN_MENU_BUTTONS.map(opt => ({ id: opt.id, title: opt.title }))
   )
   void updateSession(phone, {
