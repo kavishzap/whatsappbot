@@ -24,6 +24,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/dashboard/whatsapp-bot', label: 'Products', icon: ProductIcon },
       { href: '/dashboard/orders', label: 'Orders', icon: OrdersIcon },
       { href: '/dashboard/messages', label: 'Messages', icon: MessagesIcon },
+      { href: '/dashboard/spark-website', label: 'Website', icon: PlatformIcon },
     ],
   },
   {
@@ -34,7 +35,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/dashboard/whatsapp-product', label: 'Products', icon: ProductIcon },
       { href: '/dashboard/sodamax-orders', label: 'Orders', icon: OrdersIcon },
       { href: '/dashboard/sodamax-messages', label: 'Messages', icon: MessagesIcon },
-      { href: '/dashboard/ordering-platform-test', label: 'Platform Test', icon: PlatformIcon },
+      { href: '/dashboard/sodamax-website', label: 'Website', icon: PlatformIcon },
     ],
   },
   {
@@ -57,6 +58,9 @@ export const PAGE_META: Record<string, { title: string }> = {
   '/dashboard/messages': {
     title: 'Messages: Spark',
   },
+  '/dashboard/spark-website': {
+    title: 'Website: Spark',
+  },
   '/dashboard/whatsapp-product': {
     title: 'Products: SodaMax',
   },
@@ -66,8 +70,11 @@ export const PAGE_META: Record<string, { title: string }> = {
   '/dashboard/sodamax-messages': {
     title: 'Messages: SodaMax',
   },
+  '/dashboard/sodamax-website': {
+    title: 'Website: SodaMax',
+  },
   '/dashboard/ordering-platform-test': {
-    title: 'Platform Test: SodaMax',
+    title: 'Website: SodaMax',
   },
   '/dashboard/admin/whatsapp': {
     title: 'WhatsApp Integration: Admin',

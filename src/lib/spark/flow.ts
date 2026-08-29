@@ -42,6 +42,13 @@ import {
 } from './parse-input'
 import { sendProductList } from './product-list'
 import { sendQuantityList } from './quantity-list'
+import {
+  addressCityRetrySessionUpdate,
+  clearAddressCityRetryUpdate,
+  isAddressCityRetryPending,
+  isCityMatchUnresolved,
+  sendAddressCityRetryPrompt,
+} from '@/lib/address-city-retry'
 import { sendDeliveryAddressPrompt } from './regions'
 import { resolveMarketingProductItemId } from './marketing-product-map'
 import {
@@ -86,15 +93,16 @@ function persistSession(
 async function applyCityMatchToDraft(
   orderId: string,
   deliveryAddress: string,
-  region?: string | null,
   cityId?: string | null
 ): Promise<void> {
   try {
     const city_id =
-      cityId ??
-      (await buildCityIdPatch('spark', deliveryAddress, region)).city_id
-    if (city_id) {
-      await patchDraftOrder(orderId, { company: 'spark', city_id })
+      cityId !== undefined
+        ? cityId
+        : (await buildCityIdPatch('spark', deliveryAddress, null)).city_id
+
+    if (cityId !== undefined || city_id) {
+      await patchDraftOrder(orderId, { company: 'spark', city_id: city_id ?? null })
     }
   } catch (err) {
     console.error('Deferred city match failed:', err)
@@ -531,6 +539,7 @@ async function proceedAfterQuantityWithDraft(
       cart_items: cartItems,
       draft_order_id: draftResult.orderId,
       city: null,
+      region: null,
       ...(customerName ? { customer_name: customerName } : {}),
     },
     { previous: session, includeCart: true }
@@ -773,7 +782,28 @@ async function handleDeliveryAddress(
     return
   }
 
-  const match = await matchCityFromAddress('spark', deliveryAddress, session.region, phone)
+  const match = await matchCityFromAddress('spark', deliveryAddress, null, phone)
+
+  if (isCityMatchUnresolved(match)) {
+    if (!isAddressCityRetryPending(session)) {
+      await sendAddressCityRetryPrompt(phone)
+      await updateSession(phone, {
+        state: 'awaiting_delivery_address',
+        ...addressCityRetrySessionUpdate(),
+      })
+      return
+    }
+
+    await proceedToConfirmWithProfileName(
+      phone,
+      session,
+      deliveryAddress,
+      profileName,
+      undefined,
+      null
+    )
+    return
+  }
 
   await proceedToConfirmWithProfileName(
     phone,
@@ -802,6 +832,7 @@ async function proceedToConfirmWithProfileName(
     persistSession(phone, session, {
       state: 'awaiting_customer_name',
       city: deliveryAddress,
+      ...clearAddressCityRetryUpdate(),
     })
     return
   }
@@ -836,16 +867,12 @@ async function proceedToConfirmWithProfileName(
       state: 'awaiting_confirm',
       city: deliveryAddress,
       customer_name: customerName,
+      ...clearAddressCityRetryUpdate(),
     },
     { previous: session, includeCart: true }
   )
 
-  void applyCityMatchToDraft(
-    session.draft_order_id,
-    deliveryAddress,
-    session.region,
-    matchedCityId
-  )
+  void applyCityMatchToDraft(session.draft_order_id, deliveryAddress, matchedCityId)
 }
 
 async function handleRemoveLastItem(phone: string, session: WhatsAppSession): Promise<void> {

@@ -9,6 +9,13 @@ import {
   isWhatsAppAuthError,
 } from '@/lib/whatsapp'
 import { getCachedMediaId, setCachedMediaId } from '@/lib/spark/media-cache'
+import {
+  addressCityRetrySessionUpdate,
+  clearAddressCityRetryUpdate,
+  isAddressCityRetryPending,
+  isCityMatchUnresolved,
+  sendAddressCityRetryPrompt,
+} from '@/lib/address-city-retry'
 import { sendDeliveryAddressPrompt } from '@/lib/spark/regions'
 import { createDraftOrder, completeDraftOrder, patchDraftOrder, getDraftOrderByRef, getDraftOrderById } from '@/lib/spark/orders'
 import { findItemByLink, findItemByReferral } from '@/lib/spark/products'
@@ -731,7 +738,28 @@ async function handleDeliveryAddress(
     return
   }
 
-  const match = await matchCityFromAddress('sodamax', deliveryAddress, session.region, phone)
+  const match = await matchCityFromAddress('sodamax', deliveryAddress, null, phone)
+
+  if (isCityMatchUnresolved(match)) {
+    if (!isAddressCityRetryPending(session)) {
+      await sendAddressCityRetryPrompt(phone)
+      await updateSession(phone, {
+        state: 'awaiting_delivery_address',
+        ...addressCityRetrySessionUpdate(),
+      })
+      return
+    }
+
+    await proceedToConfirmWithProfileName(
+      phone,
+      session,
+      deliveryAddress,
+      profileName,
+      undefined,
+      null
+    )
+    return
+  }
 
   await proceedToConfirmWithProfileName(
     phone,
@@ -967,6 +995,7 @@ async function proceedToConfirmWithProfileName(
       updateSession(phone, {
         state: 'awaiting_customer_name',
         city: deliveryAddress,
+        ...clearAddressCityRetryUpdate(),
       }),
       sendWhatsAppText(phone, 'What is your full name?'),
     ])
@@ -978,9 +1007,10 @@ async function proceedToConfirmWithProfileName(
     return
   }
 
-  const cityIdPatch = matchedCityId
-    ? { city_id: matchedCityId }
-    : await buildCityIdPatch('sodamax', deliveryAddress, session.region, phone)
+  const cityIdPatch =
+    matchedCityId !== undefined
+      ? { city_id: matchedCityId }
+      : await buildCityIdPatch('sodamax', deliveryAddress, null, phone)
 
   const patchResult = await patchDraftOrder(session.draft_order_id, {
     company: 'sodamax',
@@ -1001,6 +1031,7 @@ async function proceedToConfirmWithProfileName(
       state: 'awaiting_confirm',
       city: deliveryAddress,
       customer_name: customerName,
+      ...clearAddressCityRetryUpdate(),
     }),
     sendOrderSummary(phone, updated),
   ])

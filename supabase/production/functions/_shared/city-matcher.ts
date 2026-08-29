@@ -37,11 +37,6 @@ const ADDRESS_ALIASES: Record<string, string> = {
   '4 bornes': 'quatre bornes',
   pl: 'port louis',
   'pt louis': 'port louis',
-  'pt lous': 'port louis',
-  plouis: 'port louis',
-  'port lous': 'port louis',
-  'prot lious': 'port louis',
-  'prot louis': 'port louis',
   vp: 'vacoas phoenix',
   bbrh: 'beau bassin rose hill',
   cp: 'curepipe',
@@ -271,8 +266,8 @@ function scorePhraseAgainstCity(phrase: string, city: CityCandidate, options?: C
   if (alias >= 0.95) score = Math.max(score, alias)
 
   if (options?.regionHint && city.region) {
-    const hintMatches = city.region.toLowerCase() === options.regionHint.toLowerCase()
-    score += hintMatches ? 0.02 : -0.02
+    score +=
+      city.region.toLowerCase() === options.regionHint.toLowerCase() ? 0.03 : -0.03
   }
 
   if (city.priority) {

@@ -8,7 +8,6 @@ import {
   formatOrderItemLabel,
   formatOrderProductsList,
   formatOrderQtyList,
-  formatOrderTotal,
   type OrderStatus,
   type WhatsAppBotOrder,
 } from '@/lib/whatsapp-bot-orders'
@@ -29,7 +28,7 @@ export interface OrderExportLineRow {
   city: string
   zone: string
   phone: string
-  amount: string
+  amount: number | string
   qty: string
   product: string
   note: string
@@ -61,7 +60,7 @@ export function expandOrdersForExport(orders: WhatsAppBotOrder[]): OrderExportLi
     city: displayOrderCity(order),
     zone: displayOrderZoneName(order),
     phone: order.customer_phone_number,
-    amount: formatOrderTotal(Number(order.total)),
+    amount: Number(order.total),
     qty: formatOrderQtyList(order),
     product: formatOrderProductsList(order),
     note: order.notes?.trim() || '—',
@@ -120,6 +119,6 @@ export function buildItemPivot(orders: WhatsAppBotOrder[]): ItemPivotRow[] {
 export const ITEM_PIVOT_EXPORT_COLUMNS: CsvColumn<ItemPivotRow>[] = [
   { header: 'Product Name', value: row => row.productName },
   { header: 'Total Qty', value: row => row.totalQty },
-  { header: 'Total Amount', value: row => formatOrderTotal(row.totalAmount) },
+  { header: 'Total Amount', value: row => row.totalAmount },
   { header: 'Orders', value: row => row.orderCount },
 ]

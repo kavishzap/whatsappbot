@@ -1,5 +1,6 @@
 import { fetchSession, saveSession, clearSession, mergeSessionWrite } from '@/lib/spark/session-client'
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
+import { isSessionStaleForReset } from '@/lib/session-stale-reset'
 import type { SodamaxChatState, SodamaxSession } from './types'
 
 const SODAMAX_COMPANY = 'sodamax' as const
@@ -41,6 +42,13 @@ function normalizeSession(raw: SodamaxSession): SodamaxSession {
 
 export async function loadSession(phone: string): Promise<SodamaxSession> {
   try {
+    const prior = await fetchSession<SodamaxSession>(SODAMAX_COMPANY, phone, { touch: false })
+    const priorNormalized = normalizeSession(prior)
+
+    if (isSessionStaleForReset(priorNormalized)) {
+      await clearSession(SODAMAX_COMPANY, phone)
+    }
+
     const data = await fetchSession<SodamaxSession>(SODAMAX_COMPANY, phone, { touch: true })
     return normalizeSession(data)
   } catch (err) {

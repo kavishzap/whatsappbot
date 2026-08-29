@@ -1,6 +1,7 @@
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { fetchSession, saveSession, clearSession, mergeSessionWrite } from './session-client'
 import { normalizeCartItems } from './cart'
+import { isSessionStaleForReset } from '@/lib/session-stale-reset'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import type { ChatState, WhatsAppSession } from './types'
 
@@ -46,6 +47,13 @@ function normalizeSession(raw: WhatsAppSession): WhatsAppSession {
 /** Single round-trip: load session and record inbound activity. */
 export async function loadSession(phone: string): Promise<WhatsAppSession> {
   try {
+    const prior = await fetchSession<WhatsAppSession>(SPARK_COMPANY, phone, { touch: false })
+    const priorNormalized = normalizeSession(prior)
+
+    if (isSessionStaleForReset(priorNormalized)) {
+      await clearSession(SPARK_COMPANY, phone)
+    }
+
     const data = await fetchSession<WhatsAppSession>(SPARK_COMPANY, phone, { touch: true })
     let normalized = normalizeSession(data)
 

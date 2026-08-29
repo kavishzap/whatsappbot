@@ -1,0 +1,28 @@
+{
+  "project_ref": "jlewluyfyvklebaoccke",
+  "project_name": "InvoiceApp",
+  "fetched_at": "2026-08-29T19:36:39Z",
+  "source": "supabase.com production (linked CLI)",
+  "edge_functions": [
+    "get-plans",
+    "create-companies",
+    "whatsapp-bot-items",
+    "whatsapp-bot-orders",
+    "whatsapp-bot-sessions",
+    "whatsapp-cities"
+  ],
+  "paths": {
+    "full_schema": "schema/full_schema.sql",
+    "enums_sql": "enums/enums.sql",
+    "enums_json": "enums/enums.json",
+    "tables_sql": "tables/tables.sql",
+    "tables_json": "tables/columns.json",
+    "rpc_sql": "rpc/rpc.sql",
+    "rpc_json": "rpc/functions.json",
+    "policies_sql": "policies/policies.sql",
+    "policies_json": "policies/rls_policies.json",
+    "functions": "functions/",
+    "types": "metadata/database.types.ts",
+    "config": "config.toml"
+  }
+}

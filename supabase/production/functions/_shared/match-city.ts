@@ -174,8 +174,7 @@ export async function resolveCityFromAddress(
   }
 
   const trimmedRegion = region?.trim()
-  // Match against all cities — address text beats a stale/wrong session region.
-  const cities = await fetchActiveCities(supabase)
+  const cities = await fetchActiveCities(supabase, trimmedRegion || undefined)
   if (cities.length === 0) {
     return { city_id: null, city_name: null, confidence: 'reject' }
   }
