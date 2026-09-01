@@ -21,6 +21,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Spark',
     accent: 'spark',
     items: [
+      { href: '/dashboard/spark', label: 'Dashboard', icon: DashboardIcon },
       { href: '/dashboard/whatsapp-bot', label: 'Products', icon: ProductIcon },
       { href: '/dashboard/orders', label: 'Orders', icon: OrdersIcon },
       { href: '/dashboard/messages', label: 'Messages', icon: MessagesIcon },
@@ -32,6 +33,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'SodaMax',
     accent: 'soda',
     items: [
+      { href: '/dashboard/sodamax', label: 'Dashboard', icon: DashboardIcon },
       { href: '/dashboard/whatsapp-product', label: 'Products', icon: ProductIcon },
       { href: '/dashboard/sodamax-orders', label: 'Orders', icon: OrdersIcon },
       { href: '/dashboard/sodamax-messages', label: 'Messages', icon: MessagesIcon },
@@ -49,6 +51,9 @@ export const NAV_SECTIONS: NavSection[] = [
 ]
 
 export const PAGE_META: Record<string, { title: string }> = {
+  '/dashboard/spark': {
+    title: 'Dashboard: Spark',
+  },
   '/dashboard/whatsapp-bot': {
     title: 'Products: Spark',
   },
@@ -60,6 +65,9 @@ export const PAGE_META: Record<string, { title: string }> = {
   },
   '/dashboard/spark-website': {
     title: 'Website: Spark',
+  },
+  '/dashboard/sodamax': {
+    title: 'Dashboard: SodaMax',
   },
   '/dashboard/whatsapp-product': {
     title: 'Products: SodaMax',
@@ -86,6 +94,19 @@ export function findSectionForPath(pathname: string): string | null {
     if (section.items.some(item => item.href === pathname)) return section.id
   }
   return null
+}
+
+export function DashboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 10h7V3H3v7zm11 11h7v-7h-7v7zM3 21h7v-7H3v7zm11-11h7V3h-7v7z"
+      />
+    </svg>
+  )
 }
 
 export function ProductIcon({ className }: { className?: string }) {
