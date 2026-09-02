@@ -8,6 +8,7 @@ export interface RowReorderContextValue {
   disabled: boolean
   onDragStart: (event: DragEvent, rowId: string) => void
   onDragEnd: () => void
+  onMoveToEdge: (rowId: string, edge: 'top' | 'bottom') => void
 }
 
 const RowReorderContext = createContext<RowReorderContextValue | null>(null)

@@ -91,9 +91,24 @@ export const PAGE_META: Record<string, { title: string }> = {
 
 export function findSectionForPath(pathname: string): string | null {
   for (const section of NAV_SECTIONS) {
-    if (section.items.some(item => item.href === pathname)) return section.id
+    if (section.items.some(item => isNavItemActive(pathname, item.href))) return section.id
   }
   return null
+}
+
+export function isNavItemActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+export function getPageMeta(pathname: string): { title: string } {
+  if (PAGE_META[pathname]) return PAGE_META[pathname]
+  if (pathname.startsWith('/dashboard/whatsapp-bot/')) {
+    return { title: pathname.endsWith('/new') ? 'Add product: Spark' : 'Edit product: Spark' }
+  }
+  if (pathname.startsWith('/dashboard/whatsapp-product/')) {
+    return { title: pathname.endsWith('/new') ? 'Add product: SodaMax' : 'Edit product: SodaMax' }
+  }
+  return PAGE_META['/dashboard/whatsapp-bot']
 }
 
 export function DashboardIcon({ className }: { className?: string }) {

@@ -1,7 +1,7 @@
 import { getServiceClient, handleOptions, jsonResponse } from '../_shared/http.ts'
 
 const LIST_COLUMNS =
-  'id, ad_link, ad_link_2, ad_id, ad_id_2, product_name, price, description, company, sort_order, is_website, is_whatsapp, created_at, updated_at'
+  'id, ad_link, ad_link_2, ad_id, ad_id_2, product_name, price, description, company, sort_order, is_website, is_whatsapp, promo, pre_order, sold_out, created_at, updated_at'
 const COLOR_COLUMNS = 'id, color_name, color_hex, sort_order'
 
 interface ColorInput {
@@ -162,6 +162,9 @@ Deno.serve(async (req) => {
           sort_order: sortOrder,
           is_website: body.is_website === true,
           is_whatsapp: body.is_whatsapp === true,
+          promo: body.promo === true,
+          pre_order: body.pre_order === true,
+          sold_out: body.sold_out === true,
         })
         .select('id')
         .single()
@@ -194,6 +197,9 @@ Deno.serve(async (req) => {
       if (body.sort_order !== undefined) updates.sort_order = Number(body.sort_order)
       if ('is_website' in body) updates.is_website = body.is_website === true
       if ('is_whatsapp' in body) updates.is_whatsapp = body.is_whatsapp === true
+      if ('promo' in body) updates.promo = body.promo === true
+      if ('pre_order' in body) updates.pre_order = body.pre_order === true
+      if ('sold_out' in body) updates.sold_out = body.sold_out === true
       if (body.company !== undefined) {
         const itemCompany = parseCompany(body.company)
         if (itemCompany) updates.company = itemCompany

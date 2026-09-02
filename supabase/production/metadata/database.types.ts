@@ -3138,6 +3138,47 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_bot_item_media: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          kind: string
+          mime_type: string | null
+          public_url: string
+          sort_order: number
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          kind: string
+          mime_type?: string | null
+          public_url: string
+          sort_order?: number
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          kind?: string
+          mime_type?: string | null
+          public_url?: string
+          sort_order?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_bot_item_media_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_bot_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_bot_item_colors: {
         Row: {
           color_hex: string | null
@@ -3186,6 +3227,9 @@ export type Database = {
           image_base64: string | null
           is_website: boolean | null
           is_whatsapp: boolean | null
+          promo: boolean | null
+          pre_order: boolean | null
+          sold_out: boolean | null
           price: string | null
           price_amount: number | null
           product_name: string | null
@@ -3205,6 +3249,9 @@ export type Database = {
           image_base64?: string | null
           is_website?: boolean | null
           is_whatsapp?: boolean | null
+          promo?: boolean | null
+          pre_order?: boolean | null
+          sold_out?: boolean | null
           price?: string | null
           price_amount?: number | null
           product_name?: string | null
@@ -3224,6 +3271,9 @@ export type Database = {
           image_base64?: string | null
           is_website?: boolean | null
           is_whatsapp?: boolean | null
+          promo?: boolean | null
+          pre_order?: boolean | null
+          sold_out?: boolean | null
           price?: string | null
           price_amount?: number | null
           product_name?: string | null

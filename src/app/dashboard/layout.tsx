@@ -9,7 +9,7 @@ import type { UserProfile } from '@/lib/auth'
 import { ToastProvider } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { SidebarNav } from '@/components/dashboard/sidebar-nav'
-import { PAGE_META } from '@/components/dashboard/nav-config'
+import { getPageMeta } from '@/components/dashboard/nav-config'
 import { DashboardHeaderProvider } from '@/components/dashboard/dashboard-header-context'
 import { DashboardTopBar } from '@/components/dashboard/dashboard-top-bar'
 import { SiteFooter } from '@/components/ui/site-footer'
@@ -52,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [loggingOut, setLoggingOut] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
 
-  const pageMeta = PAGE_META[pathname] ?? PAGE_META['/dashboard/whatsapp-bot']
+  const pageMeta = getPageMeta(pathname)
   const sidebarCollapsed = collapsed && isLargeScreen
 
   useEffect(() => {

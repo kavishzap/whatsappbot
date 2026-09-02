@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { NAV_SECTIONS, findSectionForPath, type NavItem } from './nav-config'
+import { NAV_SECTIONS, findSectionForPath, isNavItemActive, type NavItem } from './nav-config'
 
 function SidebarTooltip({
   label,
@@ -80,7 +80,7 @@ function AccordionSection({
   onToggle: () => void
   onNavigate?: () => void
 }) {
-  const hasActive = items.some(item => item.href === pathname)
+  const hasActive = items.some(item => isNavItemActive(pathname, item.href))
 
   if (collapsed) {
     return (
@@ -89,7 +89,7 @@ function AccordionSection({
           <NavLink
             key={item.href}
             item={item}
-            active={pathname === item.href}
+            active={isNavItemActive(pathname, item.href)}
             collapsed
             onNavigate={onNavigate}
           />
@@ -132,7 +132,7 @@ function AccordionSection({
               <NavLink
                 key={item.href}
                 item={item}
-                active={pathname === item.href}
+                active={isNavItemActive(pathname, item.href)}
                 collapsed={false}
                 onNavigate={onNavigate}
               />

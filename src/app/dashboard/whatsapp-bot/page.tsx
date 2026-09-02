@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   fetchBotItems,
-  fetchBotItem,
-  createBotItem,
-  updateBotItem,
   deleteBotItem,
   toImageSrc,
   sortBotItemsByOrder,
@@ -13,10 +11,9 @@ import {
   type WhatsAppBotItem,
   type WhatsAppBotItemSummary,
 } from '@/lib/whatsapp-bot-items'
-import { getBotItemErrorMessage, validateBotItemRow } from '@/lib/error-messages'
+import { getBotItemErrorMessage } from '@/lib/error-messages'
 import { useToast } from '@/components/ui/toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { ProductDetailModal, type ProductDetailRow } from '@/components/whatsapp-bot/product-detail-modal'
 import { ProductDragHandle } from '@/components/whatsapp-bot/product-drag-handle'
 import { CollapsibleKpiPanel } from '@/components/ui/collapsible-kpi-panel'
 import { DynamicTable, type DynamicTableColumn } from '@/components/ui/dynamic-table'
@@ -36,30 +33,14 @@ interface BotRow {
   description: string
   isWebsite: boolean
   isWhatsapp: boolean
-  colors: ProductDetailRow['colors']
+  promo: boolean
+  preOrder: boolean
+  soldOut: boolean
+  colors: { id: string; colorName: string; colorHex: string }[]
 }
 
 const GRID_COLS =
-  '52px minmax(120px,1fr) 88px minmax(140px,1.1fr) minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
-
-function createEmptyRow(): ProductDetailRow {
-  return {
-    id: crypto.randomUUID(),
-    productName: '',
-    price: '',
-    adId: '',
-    adId2: '',
-    adLink: '',
-    adLink2: '',
-    imageBase64: null,
-    imagePreview: null,
-    description: '',
-    isWebsite: false,
-    isWhatsapp: true,
-    colors: [],
-    isNew: true,
-  }
-}
+  '84px minmax(120px,1fr) 88px minmax(140px,1.1fr) minmax(140px,1.1fr) 72px minmax(160px,1.4fr) 36px'
 
 function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
   const imageBase64 = 'image_base64' in item ? item.image_base64 : null
@@ -79,12 +60,11 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
     description: item.description,
     isWebsite: item.is_website === true,
     isWhatsapp: item.is_whatsapp !== false,
+    promo: item.promo === true,
+    preOrder: item.pre_order === true,
+    soldOut: item.sold_out === true,
     colors: [],
   }
-}
-
-function rowToModal(row: BotRow): ProductDetailRow {
-  return { ...row, isNew: false }
 }
 
 function matchesProductSearch(row: BotRow, query: string): boolean {
@@ -108,13 +88,12 @@ function formatPrice(price: string): string {
 }
 
 export default function WhatsAppBotPage() {
+  const router = useRouter()
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
   const [rows, setRows] = useState<BotRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [modalSaving, setModalSaving] = useState(false)
-  const [modalRow, setModalRow] = useState<ProductDetailRow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BotRow | null>(null)
@@ -144,77 +123,14 @@ export default function WhatsAppBotPage() {
     loadItems()
   }, [loadItems])
 
-  const openAddModal = () => setModalRow(createEmptyRow())
+  const openAddPage = () => router.push('/dashboard/whatsapp-bot/new')
 
-  const openEditModal = async (row: BotRow) => {
-    setModalRow({ ...rowToModal(row), detailsLoading: true })
-    try {
-      const item = await fetchBotItem('spark', row.id)
-      const fullRow = itemToRow(item)
-      setModalRow(rowToModal(fullRow))
-      setRows(prev => prev.map(r => (r.id === item.id ? fullRow : r)))
-    } catch (err) {
-      setModalRow(null)
-      toast.error(getBotItemErrorMessage(err))
-    }
-  }
-
-  const updateModalRow = (id: string, updates: Partial<ProductDetailRow>) => {
-    setModalRow(prev => (prev && prev.id === id ? { ...prev, ...updates } : prev))
-  }
-
-  const handleSaveModal = async () => {
-    if (!modalRow) return
-    const validationError = validateBotItemRow(modalRow)
-    if (validationError) {
-      toast.error(validationError)
-      return
-    }
-
-    const payload = {
-      company: 'spark' as const,
-      ad_id: modalRow.adId.trim() || null,
-      ad_id_2: modalRow.adId2.trim() || null,
-      ad_link: modalRow.adLink.trim() || null,
-      ad_link_2: modalRow.adLink2.trim() || null,
-      product_name: modalRow.productName.trim(),
-      price: parseFloat(modalRow.price),
-      image_base64: modalRow.imageBase64,
-      description: modalRow.description.trim(),
-      is_website: modalRow.isWebsite,
-      is_whatsapp: modalRow.isWhatsapp,
-    }
-
-    setModalSaving(true)
-    try {
-      if (modalRow.isNew) {
-        const created = await createBotItem('spark', payload)
-        setRows(prev => sortBotItemsByOrder([...prev, itemToRow(created)]))
-        toast.success('Product added')
-      } else {
-        const updated = await updateBotItem('spark', modalRow.id, payload)
-        setRows(prev =>
-          sortBotItemsByOrder(prev.map(r => (r.id === updated.id ? itemToRow(updated) : r)))
-        )
-        toast.success('Product saved')
-      }
-      setModalRow(null)
-    } catch (err) {
-      toast.error(getBotItemErrorMessage(err))
-    } finally {
-      setModalSaving(false)
-    }
+  const openEditPage = (row: BotRow) => {
+    router.push(`/dashboard/whatsapp-bot/${row.id}`)
   }
 
   const requestDelete = (row: BotRow) => {
-    setModalRow(null)
     setDeleteTarget(row)
-  }
-
-  const requestDeleteFromModal = () => {
-    if (!modalRow || modalRow.isNew) return
-    const row = rows.find(r => r.id === modalRow.id)
-    if (row) requestDelete(row)
   }
 
   const confirmDelete = async () => {
@@ -223,7 +139,6 @@ export default function WhatsAppBotPage() {
     try {
       await deleteBotItem('spark', deleteTarget.id)
       setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
-      if (modalRow?.id === deleteTarget.id) setModalRow(null)
       toast.success('Product deleted')
     } catch (err) {
       toast.error(getBotItemErrorMessage(err))
@@ -370,15 +285,6 @@ export default function WhatsAppBotPage() {
         onConfirm={confirmDelete}
       />
 
-      <ProductDetailModal
-        row={modalRow}
-        saving={modalSaving}
-        onClose={() => !modalSaving && setModalRow(null)}
-        onSave={handleSaveModal}
-        onUpdate={updateModalRow}
-        onDelete={requestDeleteFromModal}
-      />
-
       <CollapsibleKpiPanel
         title="Catalog overview"
         subtitle="Spark"
@@ -411,7 +317,7 @@ export default function WhatsAppBotPage() {
         defaultPageSize={100}
         searchPlaceholder="Search product, ad ID, description…"
         searchFilter={matchesProductSearch}
-        onRowClick={openEditModal}
+        onRowClick={openEditPage}
         rowReorder={{
           rowId: row => row.id,
           onReorder: handleReorder,
@@ -422,7 +328,7 @@ export default function WhatsAppBotPage() {
             <ProductDragHandle rowId={row.id} sortOrder={row.sort_order} />
             <button
               type="button"
-              onClick={() => openEditModal(row)}
+              onClick={() => openEditPage(row)}
               className="flex-1 min-w-0 text-left table-row-hover rounded-lg -my-1 py-1"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -455,7 +361,7 @@ export default function WhatsAppBotPage() {
         toolbar={
           <button
             type="button"
-            onClick={openAddModal}
+            onClick={openAddPage}
             disabled={loading}
             className="btn-primary shrink-0 !p-2 sm:!py-2 sm:!px-4"
             aria-label="Add product"
@@ -469,7 +375,7 @@ export default function WhatsAppBotPage() {
           <div className="empty-state">
             <p className="text-sm font-semibold text-ink-900">No products yet</p>
             <p className="text-sm text-ink-500 max-w-xs">Add your first product to start receiving WhatsApp orders.</p>
-            <button type="button" onClick={openAddModal} className="btn-primary mt-1">
+            <button type="button" onClick={openAddPage} className="btn-primary mt-1">
               <PlusIcon className="w-3.5 h-3.5" />
               Add first product
             </button>

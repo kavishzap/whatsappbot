@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { downloadCsvRows, type CsvColumn } from '@/lib/export-csv'
 import { RowReorderProvider } from '@/components/ui/row-reorder-context'
 import { TablePagination } from './table-pagination'
@@ -245,6 +245,14 @@ function RowSelectCheckbox({
   )
 }
 
+function moveItem<T>(list: T[], fromIndex: number, toIndex: number): T[] | null {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return null
+  const next = [...list]
+  const [moved] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, moved)
+  return next
+}
+
 function DefaultNoResults({ onClear }: { onClear: () => void }) {
   return (
     <div className="empty-state py-10">
@@ -292,6 +300,11 @@ export function DynamicTable<T>({
   const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSort?.direction ?? 'asc')
   const [dragRowId, setDragRowId] = useState<string | null>(null)
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const dragRowIdRef = useRef<string | null>(null)
+  const pointerYRef = useRef<number | null>(null)
+  const dragOriginYRef = useRef<number | null>(null)
+  const dragStartedAtRef = useRef(0)
 
   const sortColumn = useMemo(
     () => columns.find(col => col.key === sortKey && col.sortValue),
@@ -380,51 +393,123 @@ export function DynamicTable<T>({
   const reorderDisabled =
     Boolean(rowReorder?.disabled) || Boolean(searchQuery.trim()) || Boolean(sortColumn)
 
+  const clearDragState = useCallback(() => {
+    dragRowIdRef.current = null
+    pointerYRef.current = null
+    dragOriginYRef.current = null
+    setDragRowId(null)
+    setDragOverRowId(null)
+  }, [])
+
+  const applyReorder = useCallback(
+    (fromRowId: string, toIndex: number) => {
+      if (!rowReorder || reorderDisabled) return
+      const fromIndex = sortedData.findIndex(row => rowReorder.rowId(row) === fromRowId)
+      const next = moveItem(sortedData, fromIndex, toIndex)
+      if (!next) return
+      clearDragState()
+      void rowReorder.onReorder(next)
+      const newIndex = next.findIndex(row => rowReorder.rowId(row) === fromRowId)
+      if (newIndex >= 0) {
+        setPage(Math.floor(newIndex / pageSize) + 1)
+      }
+    },
+    [clearDragState, pageSize, reorderDisabled, rowReorder, sortedData]
+  )
+
   const handleRowDragStart = useCallback(
     (event: DragEvent, rowId: string) => {
       if (!rowReorder || reorderDisabled) return
       event.dataTransfer.effectAllowed = 'move'
       event.dataTransfer.setData('text/plain', rowId)
+      dragRowIdRef.current = rowId
+      dragOriginYRef.current = event.clientY
+      dragStartedAtRef.current = Date.now()
+      pointerYRef.current = event.clientY
       setDragRowId(rowId)
     },
     [rowReorder, reorderDisabled]
   )
 
   const handleRowDragEnd = useCallback(() => {
-    setDragRowId(null)
-    setDragOverRowId(null)
-  }, [])
+    window.setTimeout(() => {
+      clearDragState()
+    }, 0)
+  }, [clearDragState])
 
   const handleRowDragOver = useCallback(
     (event: DragEvent, rowId: string) => {
-      if (!rowReorder || reorderDisabled || !dragRowId || dragRowId === rowId) return
+      if (!rowReorder || reorderDisabled) return
+      const fromId = dragRowIdRef.current
+      if (!fromId) return
       event.preventDefault()
       event.dataTransfer.dropEffect = 'move'
+      if (fromId === rowId) return
       setDragOverRowId(rowId)
     },
-    [rowReorder, reorderDisabled, dragRowId]
+    [rowReorder, reorderDisabled]
   )
 
   const handleRowDrop = useCallback(
     (event: DragEvent, targetRowId: string) => {
       if (!rowReorder || reorderDisabled) return
       event.preventDefault()
-      const fromRowId = event.dataTransfer.getData('text/plain') || dragRowId
-      setDragRowId(null)
-      setDragOverRowId(null)
-      if (!fromRowId || fromRowId === targetRowId) return
+      const fromRowId = dragRowIdRef.current || event.dataTransfer.getData('text/plain')
+      if (!fromRowId || fromRowId === targetRowId) {
+        clearDragState()
+        return
+      }
 
-      const fromIndex = sortedData.findIndex(row => rowReorder.rowId(row) === fromRowId)
       const toIndex = sortedData.findIndex(row => rowReorder.rowId(row) === targetRowId)
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return
-
-      const next = [...sortedData]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
-      void rowReorder.onReorder(next)
+      applyReorder(fromRowId, toIndex)
     },
-    [rowReorder, reorderDisabled, dragRowId, sortedData]
+    [applyReorder, clearDragState, reorderDisabled, rowReorder, sortedData]
   )
+
+  const handleMoveToEdge = useCallback(
+    (rowId: string, edge: 'top' | 'bottom') => {
+      applyReorder(rowId, edge === 'top' ? 0 : sortedData.length - 1)
+    },
+    [applyReorder, sortedData.length]
+  )
+
+  useEffect(() => {
+    if (!dragRowId) return
+
+    const onDragOver = (event: globalThis.DragEvent) => {
+      pointerYRef.current = event.clientY
+    }
+
+    document.addEventListener('dragover', onDragOver)
+
+    let frame = 0
+    const tick = () => {
+      const container = scrollRef.current
+      const y = pointerYRef.current
+      const originY = dragOriginYRef.current
+      const ready = Date.now() - dragStartedAtRef.current > 180
+      const moved = originY != null && y != null && Math.abs(y - originY) > 20
+      if (container && y != null && ready && moved) {
+        const rect = container.getBoundingClientRect()
+        const zone = 64
+        const maxStep = 24
+        if (y < rect.top + zone) {
+          const t = Math.min(1, (rect.top + zone - y) / zone)
+          container.scrollTop -= Math.max(6, maxStep * t)
+        } else if (y > rect.bottom - zone) {
+          const t = Math.min(1, (y - (rect.bottom - zone)) / zone)
+          container.scrollTop += Math.max(6, maxStep * t)
+        }
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+
+    return () => {
+      document.removeEventListener('dragover', onDragOver)
+      cancelAnimationFrame(frame)
+    }
+  }, [dragRowId])
 
   const rowReorderContextValue = useMemo(
     () =>
@@ -435,9 +520,10 @@ export function DynamicTable<T>({
             disabled: reorderDisabled,
             onDragStart: handleRowDragStart,
             onDragEnd: handleRowDragEnd,
+            onMoveToEdge: handleMoveToEdge,
           }
         : null,
-    [rowReorder, dragRowId, dragOverRowId, reorderDisabled, handleRowDragStart, handleRowDragEnd]
+    [rowReorder, dragRowId, dragOverRowId, reorderDisabled, handleRowDragStart, handleRowDragEnd, handleMoveToEdge]
   )
 
   const getRowDropProps = (row: T) => {
@@ -804,7 +890,7 @@ export function DynamicTable<T>({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 min-w-0 overflow-auto overscroll-contain">
+      <div ref={scrollRef} className="flex-1 min-h-0 min-w-0 overflow-auto overscroll-contain">
         {loading ? (
           <TableSpinner />
         ) : data.length === 0 ? (

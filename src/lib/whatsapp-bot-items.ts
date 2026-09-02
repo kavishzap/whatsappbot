@@ -21,6 +21,9 @@ export interface WhatsAppBotItemSummary {
   has_image: boolean
   is_website: boolean
   is_whatsapp: boolean
+  promo: boolean
+  pre_order: boolean
+  sold_out: boolean
   colors?: BotItemColor[]
   created_at: string
   updated_at: string
@@ -43,6 +46,9 @@ export interface BotItemPayload {
   sort_order?: number
   is_website?: boolean
   is_whatsapp?: boolean
+  promo?: boolean
+  pre_order?: boolean
+  sold_out?: boolean
   colors?: BotItemColor[]
 }
 

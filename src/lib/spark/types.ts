@@ -36,6 +36,9 @@ export interface BotItem {
   has_image?: boolean
   is_website?: boolean
   is_whatsapp?: boolean
+  promo?: boolean
+  pre_order?: boolean
+  sold_out?: boolean
   colors?: { id?: string; color_name: string; color_hex: string | null; sort_order?: number }[]
 }
 

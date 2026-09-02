@@ -51,6 +51,8 @@ export function validateBotItemRow(row: {
   adLink2?: string
   price: string
   description: string
+  promo?: boolean
+  soldOut?: boolean
 }): string | null {
   const productName = row.productName.trim()
   if (!productName) {
@@ -82,6 +84,10 @@ export function validateBotItemRow(row: {
   const price = parseFloat(row.price)
   if (!row.price.trim() || Number.isNaN(price) || price <= 0) {
     return 'Please enter a valid price greater than 0.'
+  }
+
+  if (row.promo === true && row.soldOut === true) {
+    return 'A product can’t be on promo and sold out at the same time. Turn off one of these, then save.'
   }
 
   return null

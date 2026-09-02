@@ -4,11 +4,15 @@ import { getServiceClient } from '@/lib/supabase/admin'
 import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { isAllowedRole } from '@/lib/auth'
 import { isWhatsAppCompany } from '@/lib/whatsapp-company'
+import { deleteStoredProductMedia } from '@/lib/delete-product-media'
 
 function visibilityUpdates(body: Record<string, unknown>): Record<string, boolean> | null {
   const updates: Record<string, boolean> = {}
   if ('is_website' in body) updates.is_website = body.is_website === true
   if ('is_whatsapp' in body) updates.is_whatsapp = body.is_whatsapp === true
+  if ('promo' in body) updates.promo = body.promo === true
+  if ('pre_order' in body) updates.pre_order = body.pre_order === true
+  if ('sold_out' in body) updates.sold_out = body.sold_out === true
   return Object.keys(updates).length > 0 ? updates : null
 }
 
@@ -149,6 +153,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    await deleteStoredProductMedia(id)
     const result = await invokeEdgeFunction('whatsapp-bot-items', {
       method: 'DELETE',
       query: { id },
