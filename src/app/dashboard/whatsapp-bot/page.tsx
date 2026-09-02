@@ -45,7 +45,7 @@ const GRID_COLS =
 
 function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
   const imageBase64 = 'image_base64' in item ? item.image_base64 : null
-  const hasImage = 'has_image' in item ? item.has_image : Boolean(imageBase64)
+  const hasImage = item.has_image === true || Boolean(imageBase64)
   return {
     id: item.id,
     sort_order: item.sort_order ?? 0,
