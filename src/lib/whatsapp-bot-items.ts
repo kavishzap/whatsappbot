@@ -18,13 +18,14 @@ export interface WhatsAppBotItemSummary {
   price: number | null
   description: string
   sort_order: number
-  has_image: boolean
+  has_image?: boolean
   is_website: boolean
   is_whatsapp: boolean
   promo: boolean
   pre_order: boolean
   sold_out: boolean
   colors?: BotItemColor[]
+  cover_url?: string | null
   created_at: string
   updated_at: string
 }

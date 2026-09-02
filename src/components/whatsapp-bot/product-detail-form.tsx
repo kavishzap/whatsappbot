@@ -6,6 +6,7 @@ import { fileToBase64, toImageSrc } from '@/lib/whatsapp-bot-items'
 import { useToast } from '@/components/ui/toast'
 import type { WhatsAppCompany } from '@/lib/whatsapp-company'
 import { ProductItemMediaSection } from '@/components/whatsapp-bot/product-item-media-section'
+import { ProductFrontCover } from '@/components/whatsapp-bot/product-front-cover'
 
 export interface ProductColorRow {
   id: string
@@ -144,45 +145,7 @@ export function ProductDetailForm({
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 min-h-0">
         <div className="flex flex-col sm:flex-row gap-4 items-start">
-          <div className="shrink-0">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="group relative rounded-xl overflow-hidden border border-ink-200 bg-ink-50 focus:outline-none focus:ring-4 focus:ring-[var(--ring)]"
-            >
-              {imageSrc ? (
-                <img
-                  src={imageSrc}
-                  alt={row.productName || 'Product'}
-                  className="w-24 h-24 sm:w-28 sm:h-28 object-cover"
-                />
-              ) : (
-                <div className="w-24 h-24 sm:w-28 sm:h-28 flex flex-col items-center justify-center gap-1 text-gray-400">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span className="text-[10px] font-medium">Upload</span>
-                </div>
-              )}
-              <span className="absolute inset-0 bg-gray-900/0 group-hover:bg-gray-900/30 transition-colors flex items-center justify-center">
-                <span className="opacity-0 group-hover:opacity-100 text-white text-[10px] font-medium bg-gray-900/70 px-2 py-1 rounded">
-                  {imageSrc ? 'Change' : 'Upload'}
-                </span>
-              </span>
-            </button>
-          </div>
+          <ProductFrontCover company={company} itemId={row.isNew ? null : row.id} />
 
           <div className="flex-1 min-w-0 space-y-3">
             <DetailField label="Product name">
@@ -218,6 +181,51 @@ export function ProductDetailForm({
             </DetailField>
           </div>
         </div>
+
+        <DetailField label="WhatsApp photo (legacy)">
+          <div className="flex items-start gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative shrink-0 rounded-xl overflow-hidden border border-ink-200 bg-ink-50 focus:outline-none focus:ring-4 focus:ring-[var(--ring)]"
+            >
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt={row.productName || 'Product'}
+                  className="w-20 h-20 object-cover"
+                />
+              ) : (
+                <div className="w-20 h-20 flex flex-col items-center justify-center gap-1 text-gray-400">
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="text-[10px] font-medium">Upload</span>
+                </div>
+              )}
+              <span className="absolute inset-0 bg-gray-900/0 group-hover:bg-gray-900/30 transition-colors flex items-center justify-center">
+                <span className="opacity-0 group-hover:opacity-100 text-white text-[10px] font-medium bg-gray-900/70 px-2 py-1 rounded">
+                  {imageSrc ? 'Change' : 'Upload'}
+                </span>
+              </span>
+            </button>
+            <p className="text-[10px] text-ink-400 pt-1">
+              Still used by WhatsApp. We’ll switch this to the front cover later.
+            </p>
+          </div>
+        </DetailField>
 
         <DetailField label="Facebook Ad ID">
           <input

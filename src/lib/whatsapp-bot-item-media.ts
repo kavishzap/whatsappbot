@@ -18,7 +18,7 @@ export const PRODUCT_MEDIA_VIDEO_TYPES = [
   'video/quicktime',
 ] as const
 
-export type ProductMediaKind = 'image' | 'video'
+export type ProductMediaKind = 'image' | 'video' | 'cover'
 
 export interface ProductMediaItem {
   id: string
@@ -39,6 +39,16 @@ interface ApiResponse<T> {
 
 const IMAGE_TYPE_SET = new Set<string>(PRODUCT_MEDIA_IMAGE_TYPES)
 const VIDEO_TYPE_SET = new Set<string>(PRODUCT_MEDIA_VIDEO_TYPES)
+
+export function productMediaFolder(kind: ProductMediaKind): 'images' | 'video' | 'cover' {
+  if (kind === 'video') return 'video'
+  if (kind === 'cover') return 'cover'
+  return 'images'
+}
+
+export function isImageMediaKind(kind: ProductMediaKind): boolean {
+  return kind === 'image' || kind === 'cover'
+}
 
 function companyQuery(company: WhatsAppCompany): string {
   return `company=${company}`
@@ -107,7 +117,7 @@ export async function deleteProductMedia(company: WhatsAppCompany, id: string): 
 }
 
 export function validateProductMediaFile(kind: ProductMediaKind, file: File): string | null {
-  if (kind === 'image') {
+  if (isImageMediaKind(kind)) {
     if (!IMAGE_TYPE_SET.has(file.type)) {
       return 'Please choose a JPG, PNG, WEBP, or GIF image.'
     }
@@ -143,8 +153,11 @@ export function getProductMediaErrorMessage(error: unknown): string {
   if (lower.includes('at most 3')) {
     return 'This product already has 3 extra images. Remove one to add another.'
   }
-  if (lower.includes('at most 1 video') || lower.includes('duplicate key')) {
+  if (lower.includes('at most 1 video') || (lower.includes('duplicate key') && lower.includes('video'))) {
     return 'This product already has a video. Remove it to add a different one.'
+  }
+  if (lower.includes('duplicate key') && lower.includes('cover')) {
+    return 'This product already has a front cover. Remove it to add a different one.'
   }
   if (lower.includes('fetch') || lower.includes('network')) {
     return 'Unable to upload right now. Please check your connection and try again.'

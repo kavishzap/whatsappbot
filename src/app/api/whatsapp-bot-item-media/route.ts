@@ -10,6 +10,8 @@ import {
   PRODUCT_MEDIA_MAX_IMAGES,
   PRODUCT_MEDIA_MAX_VIDEO_BYTES,
   PRODUCT_MEDIA_VIDEO_TYPES,
+  isImageMediaKind,
+  productMediaFolder,
   type ProductMediaKind,
 } from '@/lib/whatsapp-bot-item-media'
 
@@ -50,7 +52,7 @@ function jsonError(message: string, status: number) {
 }
 
 function parseKind(value: unknown): ProductMediaKind | null {
-  return value === 'image' || value === 'video' ? value : null
+  return value === 'image' || value === 'video' || value === 'cover' ? value : null
 }
 
 function publicUrlFor(path: string): string {
@@ -133,12 +135,13 @@ export async function POST(request: NextRequest) {
 
     if (action === 'prepare') {
       const size = typeof body.size === 'number' ? body.size : Number(body.size)
-      const allowedTypes = kind === 'image' ? IMAGE_TYPE_SET : VIDEO_TYPE_SET
-      const maxBytes = kind === 'image' ? PRODUCT_MEDIA_MAX_IMAGE_BYTES : PRODUCT_MEDIA_MAX_VIDEO_BYTES
+      const isImageLike = isImageMediaKind(kind)
+      const allowedTypes = isImageLike ? IMAGE_TYPE_SET : VIDEO_TYPE_SET
+      const maxBytes = isImageLike ? PRODUCT_MEDIA_MAX_IMAGE_BYTES : PRODUCT_MEDIA_MAX_VIDEO_BYTES
 
       if (!allowedTypes.has(mimeType)) {
         return jsonError(
-          kind === 'image'
+          isImageLike
             ? 'Please choose a JPG, PNG, WEBP, or GIF image.'
             : 'Please choose an MP4, WEBM, or MOV video.',
           400
@@ -146,7 +149,7 @@ export async function POST(request: NextRequest) {
       }
       if (!Number.isFinite(size) || size <= 0 || size > maxBytes) {
         return jsonError(
-          kind === 'image'
+          isImageLike
             ? 'That image is too large. Please use a file under 5 MB.'
             : 'That video is too large. Please use a file under 50 MB.',
           400
@@ -169,7 +172,7 @@ export async function POST(request: NextRequest) {
       const ext = MIME_EXTENSION[mimeType]
       if (!ext) return jsonError('That file type isn’t supported.', 400)
 
-      const folder = kind === 'image' ? 'images' : 'video'
+      const folder = productMediaFolder(kind)
       const path = `${itemId}/${folder}/${crypto.randomUUID()}.${ext}`
 
       const { data, error } = await supabase.storage
@@ -193,7 +196,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'complete') {
       const storagePath = typeof body.storage_path === 'string' ? body.storage_path : ''
-      const expectedPrefix = `${itemId}/${kind === 'image' ? 'images' : 'video'}/`
+      const expectedPrefix = `${itemId}/${productMediaFolder(kind)}/`
       if (!storagePath.startsWith(expectedPrefix)) {
         return jsonError('Invalid upload path.', 400)
       }
@@ -227,12 +230,12 @@ export async function POST(request: NextRequest) {
         nextSort = (last?.sort_order ?? -1) + 1
       }
 
-      if (kind === 'video') {
+      if (kind === 'video' || kind === 'cover') {
         const { data: existing, error: existingError } = await supabase
           .from('whatsapp_bot_item_media')
           .select('id, storage_path')
           .eq('item_id', itemId)
-          .eq('kind', 'video')
+          .eq('kind', kind)
           .maybeSingle()
 
         if (existingError) throw existingError

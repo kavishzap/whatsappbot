@@ -28,6 +28,7 @@ interface BotRow {
   adLink: string
   adLink2: string
   hasImage: boolean
+  coverUrl: string | null
   imageBase64: string | null
   imagePreview: string | null
   description: string
@@ -55,6 +56,7 @@ function itemToRow(item: WhatsAppBotItemSummary | WhatsAppBotItem): BotRow {
     adLink: item.ad_link ?? '',
     adLink2: item.ad_link_2 ?? '',
     hasImage,
+    coverUrl: item.cover_url ?? null,
     imageBase64,
     imagePreview: toImageSrc(imageBase64),
     description: item.description,
@@ -99,7 +101,7 @@ export default function WhatsAppBotPage() {
   const [deleteTarget, setDeleteTarget] = useState<BotRow | null>(null)
 
   const stats = useMemo(() => {
-    const withPhotos = rows.filter(r => r.hasImage).length
+    const withPhotos = rows.filter(r => Boolean(r.coverUrl || r.hasImage)).length
     const withAds = rows.filter(
       r => r.adId.trim() || r.adId2.trim() || r.adLink.trim() || r.adLink2.trim()
     ).length
@@ -217,21 +219,27 @@ export default function WhatsAppBotPage() {
         header: 'Photo',
         headerClassName: 'text-center',
         cellClassName: 'text-center',
-        render: row =>
-          row.imagePreview ? (
-            <img
-              src={row.imagePreview}
-              alt={row.productName || 'Product'}
-              className="w-8 h-8 rounded-md object-cover border border-ink-200 mx-auto"
-              loading="lazy"
-            />
-          ) : row.hasImage ? (
-            <div className="w-8 h-8 rounded-md border border-ink-200 bg-ink-100 mx-auto flex items-center justify-center text-[10px] text-ink-400">
-              IMG
-            </div>
-          ) : (
-            <div className="w-8 h-8 rounded-md border border-dashed border-ink-200 bg-ink-50 mx-auto" />
-          ),
+        render: row => {
+          const src = row.coverUrl || row.imagePreview
+          if (src) {
+            return (
+              <img
+                src={src}
+                alt={row.productName || 'Product'}
+                className="w-8 h-8 rounded-md object-cover border border-ink-200 mx-auto"
+                loading="lazy"
+              />
+            )
+          }
+          if (row.hasImage) {
+            return (
+              <div className="w-8 h-8 rounded-md border border-ink-200 bg-ink-100 mx-auto flex items-center justify-center text-[10px] text-ink-400">
+                IMG
+              </div>
+            )
+          }
+          return <div className="w-8 h-8 rounded-md border border-dashed border-ink-200 bg-ink-50 mx-auto" />
+        },
       },
       {
         key: 'desc',
@@ -332,9 +340,9 @@ export default function WhatsAppBotPage() {
               className="flex-1 min-w-0 text-left table-row-hover rounded-lg -my-1 py-1"
             >
               <div className="flex items-center gap-3 min-w-0">
-              {row.imagePreview ? (
+              {row.coverUrl || row.imagePreview ? (
                 <img
-                  src={row.imagePreview}
+                  src={row.coverUrl || row.imagePreview || ''}
                   alt={row.productName || 'Product'}
                   className="w-12 h-12 rounded-lg object-cover border border-ink-200 shrink-0"
                   loading="lazy"

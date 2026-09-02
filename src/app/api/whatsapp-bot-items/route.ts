@@ -5,6 +5,7 @@ import { invokeEdgeFunction } from '@/lib/supabase/edge-functions'
 import { isAllowedRole } from '@/lib/auth'
 import { isWhatsAppCompany } from '@/lib/whatsapp-company'
 import { deleteStoredProductMedia } from '@/lib/delete-product-media'
+import { attachCoverUrls } from '@/lib/attach-product-covers'
 
 function visibilityUpdates(body: Record<string, unknown>): Record<string, boolean> | null {
   const updates: Record<string, boolean> = {}
@@ -52,6 +53,30 @@ async function requireAuth() {
   return user
 }
 
+async function withCoverUrls(data: unknown): Promise<unknown> {
+  if (Array.isArray(data)) {
+    const items = data.filter(
+      (item): item is { id: string } =>
+        Boolean(item) && typeof item === 'object' && 'id' in item && typeof item.id === 'string'
+    )
+    if (items.length === 0) return data
+    const withCovers = await attachCoverUrls(items)
+    const coverById = new Map(withCovers.map(item => [item.id, item.cover_url]))
+    return data.map(item =>
+      item && typeof item === 'object' && 'id' in item && typeof item.id === 'string'
+        ? { ...item, cover_url: coverById.get(item.id) ?? null }
+        : item
+    )
+  }
+
+  if (data && typeof data === 'object' && 'id' in data && typeof data.id === 'string') {
+    const [withCover] = await attachCoverUrls([{ id: data.id }])
+    return { ...data, cover_url: withCover?.cover_url ?? null }
+  }
+
+  return data
+}
+
 export async function GET(request: NextRequest) {
   const user = await requireAuth()
   if (!user) {
@@ -72,7 +97,8 @@ export async function GET(request: NextRequest) {
     const result = await invokeEdgeFunction('whatsapp-bot-items', {
       query: { id, company },
     })
-    return NextResponse.json({ success: true, data: result.data })
+    const data = await withCoverUrls(result.data)
+    return NextResponse.json({ success: true, data })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })

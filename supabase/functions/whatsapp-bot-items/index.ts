@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
       let listQuery = supabase
         .from('whatsapp_bot_items')
-        .select(`${LIST_COLUMNS}, image_base64, colors:whatsapp_bot_item_colors(${COLOR_COLUMNS})`)
+        .select(`${LIST_COLUMNS}, colors:whatsapp_bot_item_colors(${COLOR_COLUMNS})`)
         .eq('company', company)
 
       if (forWhatsapp) {
@@ -129,9 +129,8 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: true })
       if (error) throw error
 
-      const items = (data ?? []).map(({ image_base64, colors, ...item }) => ({
+      const items = (data ?? []).map(({ colors, ...item }) => ({
         ...item,
-        has_image: Boolean(image_base64),
         colors: [...(colors ?? [])].sort(
           (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order
         ),
