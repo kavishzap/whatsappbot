@@ -20,6 +20,20 @@ export interface MarketingProductMapping {
 
 export const SPARK_MARKETING_PRODUCT_MAPPINGS: MarketingProductMapping[] = [
   {
+    itemId: 'd32cc4c1-6aac-4886-b542-c25f8a3de6f7',
+    contains: [
+      'd32cc4c1-6aac-4886-b542-c25f8a3de6f7',
+      '6-IN-1 STEAM CLEANER',
+      '6 in 1 steam cleaner',
+      'STEAM CLEANER',
+      'WAS Rs 1,800',
+      'NOW ONLY Rs 1,500',
+      'Chemical-free cleaning',
+    ],
+    // Current bulk template CTA — Meta often only sends payload "Order Now".
+    templateButtonLabels: ['Order Now'],
+  },
+  {
     itemId: '60f48211-7495-4e29-ad12-7fdbc1bc492d',
     contains: [
       '60f48211-7495-4e29-ad12-7fdbc1bc492d',
@@ -27,7 +41,6 @@ export const SPARK_MARKETING_PRODUCT_MAPPINGS: MarketingProductMapping[] = [
       '8 Sizes Glass Container',
       'Glass Container Set',
     ],
-    templateButtonLabels: ['Order Now'],
   },
 ]
 
