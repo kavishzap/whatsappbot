@@ -46,6 +46,9 @@ export const NAV_SECTIONS: NavSection[] = [
     accent: 'admin',
     items: [
       { href: '/dashboard/admin/whatsapp', label: 'WhatsApp Integration', icon: IntegrationIcon },
+      { href: '/dashboard/admin/sales-assistance', label: 'Sales Assistance', icon: MessagesIcon },
+      { href: '/dashboard/admin/sales-assistant-devices', label: 'Sales Assistant Devices', icon: IntegrationIcon },
+      { href: '/dashboard/admin/call-log', label: 'Sales Assistant Statistics', icon: OrdersIcon },
     ],
   },
 ]
@@ -86,6 +89,15 @@ export const PAGE_META: Record<string, { title: string }> = {
   },
   '/dashboard/admin/whatsapp': {
     title: 'WhatsApp Integration: Admin',
+  },
+  '/dashboard/admin/sales-assistance': {
+    title: 'Sales Assistance: Admin',
+  },
+  '/dashboard/admin/sales-assistant-devices': {
+    title: 'Sales Assistant Devices: Admin',
+  },
+  '/dashboard/admin/call-log': {
+    title: 'Sales Assistant Statistics: Admin',
   },
 }
 

@@ -65,6 +65,13 @@ interface DynamicTableProps<T> {
   rowSelection?: RowSelectionConfig
   rowReorder?: RowReorderConfig<T>
   emptyState?: ReactNode
+  serverPagination?: {
+    page: number
+    pageSize: number
+    totalItems: number
+    onPageChange: (page: number) => void
+    onPageSizeChange: (size: number) => void
+  }
   defaultPageSize?: number
   defaultSort?: { key: string; direction: SortDirection }
   className?: string
@@ -282,6 +289,7 @@ export function DynamicTable<T>({
   rowSelection,
   rowReorder,
   emptyState,
+  serverPagination,
   defaultPageSize = 10,
   defaultSort,
   className = '',
@@ -335,9 +343,10 @@ export function DynamicTable<T>({
   const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize))
 
   const paginatedData = useMemo(() => {
+    if (serverPagination) return sortedData
     const start = (page - 1) * pageSize
     return sortedData.slice(start, start + pageSize)
-  }, [sortedData, page, pageSize])
+  }, [sortedData, page, pageSize, serverPagination])
 
   const rangeStart = sortedData.length === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = Math.min(page * pageSize, sortedData.length)
@@ -912,14 +921,14 @@ export function DynamicTable<T>({
 
       {!loading && sortedData.length > 0 && (
         <TablePagination
-          page={page}
-          totalPages={totalPages}
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          totalItems={sortedData.length}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
+          page={serverPagination?.page ?? page}
+          totalPages={serverPagination ? Math.max(1, Math.ceil(serverPagination.totalItems / serverPagination.pageSize)) : totalPages}
+          rangeStart={serverPagination ? (serverPagination.totalItems ? (serverPagination.page - 1) * serverPagination.pageSize + 1 : 0) : rangeStart}
+          rangeEnd={serverPagination ? Math.min(serverPagination.page * serverPagination.pageSize, serverPagination.totalItems) : rangeEnd}
+          totalItems={serverPagination?.totalItems ?? sortedData.length}
+          pageSize={serverPagination?.pageSize ?? pageSize}
+          onPageChange={serverPagination?.onPageChange ?? setPage}
+          onPageSizeChange={serverPagination?.onPageSizeChange ?? setPageSize}
         />
       )}
     </div>
