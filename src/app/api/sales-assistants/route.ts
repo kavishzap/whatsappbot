@@ -4,7 +4,7 @@ import { getServiceClient } from '@/lib/supabase/admin'
 import { isAllowedRole } from '@/lib/auth'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const COLUMNS = 'id, full_name, email, phone_number, is_active, created_at'
+const COLUMNS = 'id, full_name, email, phone_number, password, is_active, created_at'
 const failure = (error: string, status: number) => NextResponse.json({ success: false, error }, { status })
 
 async function handle(request: NextRequest, method: 'GET' | 'POST' | 'PUT' | 'DELETE') {
@@ -34,13 +34,14 @@ async function handle(request: NextRequest, method: 'GET' | 'POST' | 'PUT' | 'DE
     const fields = body as Record<string, unknown>
     if (typeof fields.full_name !== 'string' || !fields.full_name.trim()) return failure('Full name is required', 400)
     if (typeof fields.is_active !== 'boolean') return failure('Active status must be a boolean', 400)
-    for (const field of ['email', 'phone_number']) {
+    for (const field of ['email', 'phone_number', 'password']) {
       if (fields[field] != null && typeof fields[field] !== 'string') return failure(`Invalid ${field}`, 400)
     }
     const email = typeof fields.email === 'string' ? fields.email.trim() || null : null
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return failure('Enter a valid email address', 400)
     const values = { full_name: fields.full_name.trim(), email,
       phone_number: typeof fields.phone_number === 'string' ? fields.phone_number.trim() || null : null,
+      password: typeof fields.password === 'string' ? fields.password.trim() || null : null,
       is_active: fields.is_active }
     const query = method === 'POST'
       ? client.from('sales_assistants').insert(values)

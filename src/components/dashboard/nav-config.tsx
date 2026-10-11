@@ -11,7 +11,7 @@ export interface NavItem {
 export interface NavSection {
   id: string
   label: string
-  accent: 'spark' | 'soda' | 'admin'
+  accent: 'spark' | 'soda' | 'admin' | 'sales'
   items: NavItem[]
 }
 
@@ -46,9 +46,16 @@ export const NAV_SECTIONS: NavSection[] = [
     accent: 'admin',
     items: [
       { href: '/dashboard/admin/whatsapp', label: 'WhatsApp Integration', icon: IntegrationIcon },
-      { href: '/dashboard/admin/sales-assistance', label: 'Sales Assistance', icon: MessagesIcon },
+    ],
+  },
+  {
+    id: 'sales',
+    label: 'Sales Assistance',
+    accent: 'sales',
+    items: [
+      { href: '/dashboard/admin/sales-assistance', label: 'Sales Assistant', icon: MessagesIcon },
       { href: '/dashboard/admin/sales-assistant-devices', label: 'Sales Assistant Devices', icon: IntegrationIcon },
-      { href: '/dashboard/admin/call-log', label: 'Sales Assistant Statistics', icon: OrdersIcon },
+      { href: '/dashboard/admin/call-log', label: 'Phone Statistics', icon: OrdersIcon },
     ],
   },
 ]
@@ -91,13 +98,13 @@ export const PAGE_META: Record<string, { title: string }> = {
     title: 'WhatsApp Integration: Admin',
   },
   '/dashboard/admin/sales-assistance': {
-    title: 'Sales Assistance: Admin',
+    title: 'Sales Assistant: Sales Assistance',
   },
   '/dashboard/admin/sales-assistant-devices': {
-    title: 'Sales Assistant Devices: Admin',
+    title: 'Sales Assistant Devices: Sales Assistance',
   },
   '/dashboard/admin/call-log': {
-    title: 'Sales Assistant Statistics: Admin',
+    title: 'Phone Statistics: Sales Assistance',
   },
 }
 

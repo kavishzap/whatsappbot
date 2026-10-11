@@ -78,13 +78,13 @@ export default function CallLogPage() {
   ]
 
   return (
-    <section className="panel flex-1 min-h-0 overflow-auto p-5 sm:p-6 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-lg font-bold text-ink-900">Sales Assistant Statistics</h1><p className="mt-1 text-sm text-ink-500">View call totals and calls synced by sales assistant devices, most recent first.</p></div>
+    <div className="flex flex-col flex-1 min-h-0 w-full gap-3 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div><h1 className="text-lg font-bold text-ink-900">Phone Statistics</h1><p className="mt-1 text-sm text-ink-500">View call totals and calls synced by sales assistant devices, most recent first.</p></div>
         <button type="button" className="btn-secondary" disabled={loading} onClick={() => setReload(value => value + 1)}>Refresh</button>
       </div>
-      {error && <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="underline font-medium" onClick={() => setReload(value => value + 1)}>Retry</button></div>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {error && <div role="alert" className="shrink-0 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="underline font-medium" onClick={() => setReload(value => value + 1)}>Retry</button></div>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 shrink-0">
         <StatCard label="Total Incoming" value={loading || error ? '-' : statistics.incoming.toLocaleString()} hint="All call logs" tone="success" />
         <StatCard label="Total Outgoing" value={loading || error ? '-' : statistics.outgoing.toLocaleString()} hint="All call logs" tone="brand" />
         <StatCard label="Total Missed" value={loading || error ? '-' : statistics.missed.toLocaleString()} hint="All call logs" tone="danger" />
@@ -93,7 +93,6 @@ export default function CallLogPage() {
       <DynamicTable<CallLog> data={error ? [] : logs} columns={columns} rowKey={row => row.id} loading={loading} minWidth="1400px"
         serverPagination={{ page, pageSize, totalItems: total, onPageChange: setPage, onPageSizeChange: size => { setPage(1); setPageSize(size) } }}
         emptyState={<p className="text-sm text-ink-500 py-6 text-center">{error ? 'Unable to load call logs. Use Retry above.' : 'No call logs yet.'}</p>} />
-
-    </section>
+    </div>
   )
 }

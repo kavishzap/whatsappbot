@@ -100,7 +100,6 @@ export default function SalesAssistantDevicesPage() {
     <section className="panel flex-1 min-h-0 overflow-auto p-5 sm:p-6 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-lg font-bold text-ink-900">Sales Assistant Devices</h1><p className="mt-1 text-sm text-ink-500">Manage devices linked to your sales assistants.</p></div>
-        <button type="button" className="btn-primary" disabled={loading || !!error || formOpen || saving || deleteBusy || !assistants.length} onClick={() => openForm(null)}>Add device</button>
       </div>
       {error && <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="underline font-medium" onClick={() => setReload(value => value + 1)}>Retry</button></div>}
       {formOpen && <form onSubmit={save} className="rounded-xl border border-ink-200 p-4 space-y-4">
@@ -117,7 +116,7 @@ export default function SalesAssistantDevicesPage() {
         </fieldset>
         <div className="flex gap-2"><button className="btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save device'}</button><button className="btn-secondary" type="button" disabled={saving} onClick={() => setFormOpen(false)}>Cancel</button></div>
       </form>}
-      {!loading && !error && !assistants.length && <p className="text-sm text-ink-500">Create a sales assistant on the Sales Assistance page before adding a device.</p>}
+      {!loading && !error && !assistants.length && <p className="text-sm text-ink-500">No sales assistants yet. Add one on the Sales Assistant page.</p>}
       <DynamicTable<Device> data={error ? [] : devices} columns={columns} rowKey={row => row.id} loading={loading}
         defaultPageSize={50} minWidth="900px" searchPlaceholder="Search devices..."
         searchFilter={(row, query) => [assistants.find(assistant => assistant.id === row.sales_assistant_id)?.full_name, row.device_name, row.device_model, row.android_version, row.app_version].some(value => value?.toLowerCase().includes(query.toLowerCase()))}

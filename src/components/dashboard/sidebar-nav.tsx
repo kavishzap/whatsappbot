@@ -158,6 +158,7 @@ export function SidebarNav({
     spark: true,
     sodamax: true,
     admin: true,
+    sales: true,
   })
 
   useEffect(() => {
