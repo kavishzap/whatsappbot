@@ -277,10 +277,6 @@ export function CallLogModal({ log, onClose, onUpdated }: CallLogModalProps) {
       toast.error('Phone is required.')
       return
     }
-    if (!cityName) {
-      toast.error('City is required.')
-      return
-    }
     const parsedItems = form.items.map(item => {
       const product_name = item.product_name.trim()
       if (!product_name) return null

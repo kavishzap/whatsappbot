@@ -51,13 +51,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Missing or invalid company (spark|sodamax)' }, { status: 400 })
     }
 
-    const city = body.city?.trim() ?? ''
+    const city = body.city?.trim() || '—'
     const customerPhone = normalizeWhatsAppPhone(body.customer_phone_number?.trim() ?? '')
     if (!customerPhone) {
       return NextResponse.json({ success: false, error: 'Missing required field: customer_phone_number' }, { status: 400 })
-    }
-    if (!city) {
-      return NextResponse.json({ success: false, error: 'Missing required field: city' }, { status: 400 })
     }
 
     const items = Array.isArray(body.items) ? body.items : []

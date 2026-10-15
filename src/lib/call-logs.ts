@@ -50,7 +50,7 @@ export async function convertCallLogToOrder(payload: {
   customer_name?: string
   customer_phone_number: string
   address?: string
-  city: string
+  city?: string
   city_id?: string | null
   notes?: string | null
   items: Array<{

@@ -42,7 +42,7 @@ export default function CallLogPage() {
   const [selected, setSelected] = useState<CallLog | null>(null)
   const [exporting, setExporting] = useState(false)
   const toast = useToast()
-  const [statistics, setStatistics] = useState({ incoming: 0, outgoing: 0, missed: 0, duration_seconds: 0 })
+  const [statistics, setStatistics] = useState({ incoming: 0, outgoing: 0, missed: 0, missed_open: 0, duration_seconds: 0 })
   const filtersActive = Boolean(callType || phone || followUp)
 
   useEffect(() => {
@@ -174,8 +174,8 @@ export default function CallLogPage() {
       {error && <div role="alert" className="shrink-0 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="underline font-medium" onClick={() => setReload(value => value + 1)}>Retry</button></div>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 shrink-0">
         <StatCard label="Total Incoming" value={loading || error ? '-' : statistics.incoming.toLocaleString()} hint={filtersActive ? 'Matching filters' : 'All call logs'} tone="success" />
-        <StatCard label="Total Outgoing" value={loading || error ? '-' : statistics.outgoing.toLocaleString()} hint={filtersActive ? 'Matching filters' : 'All call logs'} tone="brand" />
-        <StatCard label="Total Missed" value={loading || error ? '-' : statistics.missed.toLocaleString()} hint={filtersActive ? 'Matching filters' : 'All call logs'} tone="danger" />
+        <StatCard label="Outgoing connected" value={loading || error ? '-' : statistics.outgoing.toLocaleString()} hint={filtersActive ? 'Answered outgoing calls matching your filters. Calls that lasted 0 seconds are not included.' : 'Answered outgoing calls only. If nobody picked up and the duration is 0 seconds, it is not counted.'} tone="brand" />
+        <StatCard label="Total Missed" value={loading || error ? '-' : statistics.missed.toLocaleString()} hint={loading || error ? (filtersActive ? 'Matching filters' : 'All call logs') : `${statistics.missed_open.toLocaleString()} still open${filtersActive ? ' · matching filters' : ''}`} tone="danger" />
         <StatCard label="Total Duration" value={loading || error ? '-' : duration(statistics.duration_seconds)} hint={filtersActive ? 'Matching filters' : 'All call types'} />
       </div>
       <DynamicTable<CallLog> data={error ? [] : logs} columns={columns} rowKey={row => row.id} loading={loading} minWidth="980px"

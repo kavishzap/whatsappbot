@@ -25,11 +25,12 @@ async function run(method, query, body, settings = {}) {
           const rows = settings.empty ? [] : [
             ...Array.from({ length: 1000 }, () => ({ call_type: 'incoming', duration_seconds: 1 })),
             { call_type: 'outgoing', duration_seconds: 60 },
+            { call_type: 'outgoing', duration_seconds: 0 },
             { call_type: 'missed', duration_seconds: 0 },
             { call_type: 'rejected', duration_seconds: 10 },
             { call_type: 'blocked', duration_seconds: 5 },
           ]
-          return Promise.resolve({ data: call.columns === 'call_type, duration_seconds' ? rows.slice(start, end + 1) : [], count: settings.empty ? 0 : 123, error: settings.dbError ? new Error('Database failure') : null })
+          return Promise.resolve({ data: call.columns === 'call_type, duration_seconds, follow_up_status' ? rows.slice(start, end + 1) : [], count: settings.empty ? 0 : 123, error: settings.dbError ? new Error('Database failure') : null })
         },
         maybeSingle() { return Promise.resolve(result()) },
         single() {
@@ -78,6 +79,7 @@ async function main() {
     assert.equal(result.response.statistics.incoming, 1000)
     assert.equal(result.response.statistics.outgoing, 1)
     assert.equal(result.response.statistics.missed, 1)
+    assert.equal(result.response.statistics.missed_open, 1)
     assert.equal(result.response.statistics.duration_seconds, 1075)
     assert.deepEqual(result.calls[1].range, [0, 999])
     assert.deepEqual(result.calls[2].range, [1000, 1999])

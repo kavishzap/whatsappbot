@@ -81,12 +81,12 @@ export async function GET(request: NextRequest) {
       data.push(...(rows ?? []))
       if (!rows || rows.length < Math.min(1000, pageSize - offset)) break
     }
-    const statistics = { incoming: 0, outgoing: 0, missed: 0, duration_seconds: 0 }
+    const statistics = { incoming: 0, outgoing: 0, missed: 0, missed_open: 0, duration_seconds: 0 }
     if (request.nextUrl.searchParams.get('stats') !== '0') {
       // Read only the two fields needed for totals, in batches to avoid Supabase's row limit.
       const batchSize = 1000
       for (let offset = 0; ; offset += batchSize) {
-        let statsQuery = client.from('call_logs').select('call_type, duration_seconds')
+        let statsQuery = client.from('call_logs').select('call_type, duration_seconds, follow_up_status')
         if (callType) statsQuery = statsQuery.eq('call_type', callType)
         if (phonePattern) statsQuery = statsQuery.ilike('phone_number', phonePattern)
         if (followUp === 'open') statsQuery = statsQuery.is('follow_up_status', null)
@@ -96,8 +96,11 @@ export async function GET(request: NextRequest) {
         if (statsError) throw statsError
         for (const call of batch ?? []) {
           if (call.call_type === 'incoming') statistics.incoming += 1
-          if (call.call_type === 'outgoing') statistics.outgoing += 1
-          if (call.call_type === 'missed') statistics.missed += 1
+          if (call.call_type === 'outgoing' && call.duration_seconds > 0) statistics.outgoing += 1
+          if (call.call_type === 'missed') {
+            statistics.missed += 1
+            if (!call.follow_up_status) statistics.missed_open += 1
+          }
           statistics.duration_seconds += call.duration_seconds
         }
         if (!batch || batch.length < batchSize) break
