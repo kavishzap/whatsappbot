@@ -54,7 +54,7 @@ export const SUPPORT_WHATSAPP_URL = `https://wa.me/${supportNumber}`
 
 export const ORDER_PLATFORM_URL =
   process.env.SODAMAX_ORDER_PLATFORM_URL?.trim() ||
-  'https://sodamax-online-order.netlify.app'
+  'https://sodamax.mu'
 
 export const WEB_CHECKOUT_MESSAGE =
   'Browse refills and other products on our online store.\n\nAfter checkout, tap *Continue on WhatsApp* and send us your order reference to confirm.'
